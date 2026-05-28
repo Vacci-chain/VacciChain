@@ -1,5 +1,8 @@
 #  Vacci-Chain
 
+[![CI](https://github.com/EDOHWARES/VacciChain/actions/workflows/ci.yml/badge.svg)](https://github.com/EDOHWARES/VacciChain/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/EDOHWARES/VacciChain/graph/badge.svg?token=YOUR_TOKEN)](https://codecov.io/gh/EDOHWARES/VacciChain)
+
 > Blockchain-based vaccination records on Stellar — soulbound, verifiable, tamper-proof.
 
 VacciChain lets governments and healthcare providers issue vaccination records as non-transferable NFTs (soulbound tokens) on the Stellar network via Soroban smart contracts. Patients hold records in their Stellar wallets. Schools, employers, and border agencies verify status on-chain — no central database, no forgery.
@@ -14,6 +17,31 @@ VacciChain lets governments and healthcare providers issue vaccination records a
 -  **SEP-10 authentication** — Stellar Web Auth for secure, replay-protected sessions
 -  **Analytics service** — vaccination rates, issuer activity, and anomaly detection
 -  **Fully dockerized** — one command to spin up the entire stack
+
+---
+
+## 🌐 Public Demo Environment
+
+You can explore VacciChain without setting up a local environment by visiting our live testnet demo.
+
+* **Network:** Stellar Testnet
+* **Reset Schedule:** Weekly (Every Sunday at 00:00 UTC)
+
+### Testing as an Issuer
+To evaluate the issuer flow (minting and revoking records), you can connect your Freighter wallet using testnet credentials. **Ensure your wallet is set to Testnet.**
+
+> **⚠️ Security Warning:** The demo database and contract state are wiped periodically.
+
+## 🚀 Staging Environment
+
+A production-equivalent staging environment is automatically deployed on every merge to `main`:
+
+* **URL:** https://staging.vaccichain.example.com
+* **Network:** Stellar Testnet
+* **Deployment:** Automatic via GitHub Actions
+* **Infrastructure:** AWS ECS Fargate
+
+See [docs/staging-environment.md](docs/staging-environment.md) for testing and monitoring procedures.
 
 ---
 
@@ -74,6 +102,8 @@ vacci-chain/
 └── docker-compose.yml
 ```
 
+See the [Folder Structure Guide](docs/folder-structure.md) for detailed descriptions of every directory and key file.
+
 ---
 
 ##  Tech Stack
@@ -125,7 +155,10 @@ issuer_address   →  bool (authorized)
 
 ##  Backend API
 
-Base URL: `http://localhost:4000`
+Base URL: `http://localhost:4000/v1`
+
+> All endpoints are versioned. Responses include an `API-Version: 1` header.
+> Unversioned paths (`/auth/...`, `/vaccination/...`, etc.) return a `308 Permanent Redirect` to `/v1/...` with a `Deprecation: true` header.
 
 ### Auth
 
@@ -229,7 +262,19 @@ cp .env.example .env
 # Fill in your Stellar keys and contract IDs
 ```
 
-### 2. Deploy the contract
+### 2. Setup secret scanning protection
+
+```bash
+# Linux/macOS
+./scripts/setup-git-hooks.sh
+
+# Windows
+.\scripts\setup-git-hooks.ps1
+```
+
+This installs [Gitleaks](https://github.com/gitleaks/gitleaks) pre-commit hooks to prevent accidental commits of Stellar secret keys, JWT secrets, and other credentials. See [docs/secret-scanning-setup.md](docs/secret-scanning-setup.md) for details.
+
+### 3. Deploy the contract
 
 ```bash
 cd contracts
@@ -238,13 +283,13 @@ make deploy      # deploy to testnet, outputs CONTRACT_ID
 make test        # run contract unit tests
 ```
 
-### 3. Run with Docker
+### 4. Run with Docker
 
 ```bash
 docker compose up --build
 ```
 
-### 4. Run locally (without Docker)
+### 5. Run locally (without Docker)
 
 ```bash
 # Backend
@@ -281,6 +326,12 @@ Copy `.env.example` to `.env` and fill in the required values. The backend valid
 | `AUDIT_LOG_PATH` | no | `./audit.log` | Path to append-only NDJSON audit log |
 | `ANALYTICS_PORT` | no | `8001` | Python analytics service port |
 | `BACKEND_URL` | no | `http://backend:4000` | Analytics service → backend base URL |
+| `ANOMALY_THRESHOLD` | no | `50` | Mint count above which an issuer is flagged |
+| `ANOMALY_SCHEDULE_MINUTES` | no | `15` | How often (minutes) the anomaly check runs |
+| `ALERT_WEBHOOK_URL` | no | — | Webhook URL to POST alerts to (Slack/PagerDuty/email) |
+| `ALERT_WEBHOOK_TYPE` | no | `slack` | Webhook payload format: `slack`, `pagerduty`, or `email` |
+| `PAGERDUTY_ROUTING_KEY` | no | — | PagerDuty Events API v2 routing key (required when `ALERT_WEBHOOK_TYPE=pagerduty`) |
+| `ALERT_EMAIL_TO` | no | — | Recipient address (required when `ALERT_WEBHOOK_TYPE=email`) |
 
 For full descriptions, format rules, and examples see [docs/configuration.md](docs/configuration.md).
 
@@ -303,6 +354,7 @@ cd python-service && pytest
 
 ##  Security Notes
 
+- **Security headers** — Comprehensive CSP, X-Frame-Options, and other headers protect against XSS, clickjacking, and MIME sniffing attacks (see [docs/security-headers.md](docs/security-headers.md))
 - Soulbound enforcement is at the **contract level** — no UI or backend can bypass it
 - Issuer authorization is **on-chain** — adding/removing issuers requires an admin-signed contract call
 - SEP-10 challenges expire after 5 minutes and are single-use
@@ -315,3 +367,15 @@ cd python-service && pytest
 ##  License
 
 MIT © VacciChain Contributors
+
+---
+
+## 🗺️ Roadmap
+
+| Milestone | Target | Focus |
+|-----------|--------|-------|
+| v0.1 — Testnet MVP | 2026-06-30 | Core contract, backend, frontend, CI |
+| v0.2 — Security Hardening | 2026-09-30 | Auth hardening, audit, onboarding |
+| v1.0 — Mainnet Launch | 2026-12-31 | Production deployment, compliance |
+
+See [docs/roadmap.md](docs/roadmap.md) for full milestone details, success criteria, and issue triage.

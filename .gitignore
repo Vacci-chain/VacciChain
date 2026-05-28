@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
+frontend/package-lock.json
 
 # Build outputs
 dist/
@@ -11,9 +12,10 @@ build/
 target/
 *.wasm
 
-# Environment
+# Environment — ignore all .env variants except the example template
 .env
-*.env.local
+.env.*
+!.env.example
 
 # Logs
 *.log
@@ -26,3 +28,7 @@ Thumbs.db
 # Python venv
 venv/
 .venv/
+
+# IDE
+.vscode/
+.idea/

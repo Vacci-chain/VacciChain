@@ -1,7 +1,44 @@
-export default function NFTCard({ record, onClick }) {
+import { useTranslation } from 'react-i18next';
+import CopyButton from './CopyButton';
+import NFTCardSkeleton from './NFTCardSkeleton';
+
+async function exportCertificate(record) {
+  const [{ jsPDF }, QRCode] = await Promise.all([
+    import('jspdf'),
+    import('qrcode'),
+  ]);
+
+  const verifyUrl = `${window.location.origin}/verify/${record.issuer}`;
+  const qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 128, margin: 1 });
+
+  const doc = new jsPDF();
+  doc.setFontSize(20);
+  doc.text('VacciChain Vaccination Certificate', 105, 20, { align: 'center' });
+
+  doc.setFontSize(12);
+  doc.text(`Vaccine: ${record.vaccine_name}`, 20, 45);
+  doc.text(`Date Administered: ${record.date_administered}`, 20, 57);
+  doc.text(`Issuer: ${record.issuer?.slice(0, 8)}…${record.issuer?.slice(-4)}`, 20, 69);
+  doc.text(`Wallet: ${record.patient?.slice(0, 8) ?? 'N/A'}…${record.patient?.slice(-4) ?? ''}`, 20, 81);
+  doc.text(`Token ID: #${record.token_id}`, 20, 93);
+
+  doc.addImage(qrDataUrl, 'PNG', 150, 40, 40, 40);
+  doc.setFontSize(8);
+  doc.text('Scan to verify on-chain', 155, 84);
+
+  const safeName = record.vaccine_name.replace(/\s+/g, '_');
+  doc.save(`VacciChain_${safeName}_${record.date_administered}.pdf`);
+}
+
+export default function NFTCard({ record, onClick, loading = false }) {
+  const { t } = useTranslation();
+
+  if (loading) return <NFTCardSkeleton count={1} />;
+
   return (
     <div
-      role="button"
+      data-testid="nft-card"
+      aria-label={`Vaccination record: ${record.vaccine_name}`}
       tabIndex={0}
       onClick={onClick}
       onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onClick?.()}
@@ -24,7 +61,34 @@ export default function NFTCard({ record, onClick }) {
         <span style={{ fontSize: '1.1rem', fontWeight: 600, color: '#38bdf8', minWidth: 0, wordBreak: 'break-word' }}>
           💉 {record.vaccine_name}
         </span>
-        <span style={{ fontSize: '0.75rem', color: '#94a3b8' }} aria-label={`Token ID ${record.token_id}`}>#{record.token_id}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {record.dose_number != null && (
+            <span
+              aria-label={`Dose ${record.dose_number}${record.dose_series != null ? ` of ${record.dose_series}` : ''}`}
+              style={{
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                padding: '0.15rem 0.5rem',
+                borderRadius: 99,
+                background: record.dose_series != null && record.dose_number >= record.dose_series
+                  ? '#166534'
+                  : '#1e3a5f',
+                color: record.dose_series != null && record.dose_number >= record.dose_series
+                  ? '#86efac'
+                  : '#93c5fd',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {record.dose_series != null
+                ? `${record.dose_number}/${record.dose_series} doses`
+                : `Dose ${record.dose_number}`}
+            </span>
+          )}
+          <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'inline-flex', alignItems: 'center' }} aria-label={`Token ID ${record.token_id}`}>
+            #{record.token_id}
+            <CopyButton text={String(record.token_id)} label="token ID" />
+          </span>
+        </div>
       </div>
       <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem', fontSize: '0.9rem' }}>
         Date: {record.date_administered}
@@ -32,6 +96,22 @@ export default function NFTCard({ record, onClick }) {
       <p style={{ color: '#94a3b8', fontSize: '0.8rem', marginTop: '0.25rem' }}>
         Issuer: {record.issuer?.slice(0, 8)}…{record.issuer?.slice(-4)}
       </p>
-    </article>
+      <button
+        aria-label={`Export certificate for ${record.vaccine_name}`}
+        onClick={(e) => { e.stopPropagation(); exportCertificate(record); }}
+        style={{
+          marginTop: '0.75rem',
+          padding: '0.35rem 0.85rem',
+          fontSize: '0.8rem',
+          background: 'transparent',
+          border: '1px solid #38bdf8',
+          borderRadius: 6,
+          color: '#38bdf8',
+          cursor: 'pointer',
+        }}
+      >
+        📄 {t('exportCertificate', 'Export Certificate')}
+      </button>
+    </div>
   );
 }

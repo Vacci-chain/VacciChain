@@ -1,39 +1,33 @@
-import { Routes, Route, Link, useLocation } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import Landing from './pages/Landing';
 import PatientDashboard from './pages/PatientDashboard';
 import IssuerDashboard from './pages/IssuerDashboard';
 import VerifyPage from './pages/VerifyPage';
+import AdminDashboard from './pages/AdminDashboard';
+import IssuerOnboarding from './pages/IssuerOnboarding';
+import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import { AuthProvider } from './hooks/useFreighter';
+import { useDarkMode } from './hooks/useDarkMode';
 import FreighterBanner from './components/FreighterBanner';
-
-function NavLink({ to, children }) {
-  const { pathname } = useLocation();
-  const active = pathname === to;
-  return (
-    <Link to={to} aria-current={active ? 'page' : undefined}>
-      {children}
-    </Link>
-  );
-}
+import DemoBanner from './components/DemoBanner';
+import NavBar from './components/NavBar';
 
 export default function App() {
   const [dark, setDark] = useDarkMode();
 
   return (
     <AuthProvider>
-      <nav aria-label="Main navigation" style={{ padding: '1rem 2rem', background: '#1e293b', display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
-        <strong style={{ color: '#38bdf8', fontSize: '1.2rem' }}>💉 VacciChain</strong>
-        <NavLink to="/">Home</NavLink>
-        <NavLink to="/patient">My Records</NavLink>
-        <NavLink to="/issuer">Issue</NavLink>
-        <NavLink to="/verify">Verify</NavLink>
-      </nav>
+      <DemoBanner/>
+      <NavBar dark={dark} onToggleDark={() => setDark((d) => !d)} />
       <FreighterBanner />
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/patient" element={<PatientDashboard />} />
         <Route path="/issuer" element={<IssuerDashboard />} />
         <Route path="/verify" element={<VerifyPage />} />
+        <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/apply" element={<IssuerOnboarding />} />
+        <Route path="/analytics" element={<AnalyticsDashboard />} />
       </Routes>
     </AuthProvider>
   );

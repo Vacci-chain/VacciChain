@@ -1,37 +1,71 @@
-import httpx
 import os
-from fastapi import APIRouter
-from pydantic import BaseModel
-from typing import List
+import httpx
+from fastapi import APIRouter, HTTPException, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from schemas import BatchVerifyRequest, BatchVerifyResponse, WalletResult
 
-router = APIRouter()
+router = APIRouter(tags=["Batch"])
+limiter = Limiter(key_func=get_remote_address)
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://backend:4000")
 
 
-class BatchVerifyRequest(BaseModel):
-    wallets: List[str]
+@router.post(
+    "/verify",
+    response_model=BatchVerifyResponse,
+    summary="Bulk verify Stellar wallet vaccination status",
+    description=(
+        "Accepts up to **100** Stellar public-key addresses and returns the vaccination "
+        "status for each one by querying the on-chain verification endpoint.\n\n"
+        "- Each address must be a valid Stellar public key starting with `G`.\n"
+        "- Wallets that cannot be reached are returned with an `error` field instead of "
+        "`vaccinated`/`record_count`.\n\n"
+        "**Auth:** No authentication required — mirrors the public `/verify/:wallet` endpoint."
+    ),
+    responses={
+        400: {"description": "Request contains more than 100 wallets"},
+        429: {"description": "Rate limit exceeded"},
+    },
+)
+@limiter.limit("30/minute")
+async def batch_verify(request: Request, body: BatchVerifyRequest):
+    """
+    Verify vaccination status for multiple wallets in a single request.
 
+    Accepts a list of Stellar wallet addresses and returns their vaccination status
+    by querying the backend's public verification endpoint for each wallet.
 
-@router.post("/verify")
-async def batch_verify(request: BatchVerifyRequest):
-    """Bulk verify a list of Stellar wallet addresses."""
-    if len(request.wallets) > 100:
-        from fastapi import HTTPException
+    Args:
+        request (BatchVerifyRequest): Request containing a list of wallet addresses
+
+    Returns:
+        BatchVerifyResponse: Response containing verification results for each wallet
+
+    Raises:
+        HTTPException: 400 if more than 100 wallets are provided
+        HTTPException: 500 if the backend API is unreachable
+
+    Note:
+        - Maximum 100 wallets per request
+        - No authentication required
+        - Individual wallet lookup failures do not fail the entire request
+    """
+    if len(body.wallets) > 100:
         raise HTTPException(status_code=400, detail="Maximum 100 wallets per request")
 
-    results = []
+    results: list[WalletResult] = []
     async with httpx.AsyncClient() as client:
-        for wallet in request.wallets:
+        for wallet in body.wallets:
             try:
                 res = await client.get(f"{BACKEND_URL}/verify/{wallet}", timeout=10)
                 data = res.json()
-                results.append({
-                    "wallet": wallet,
-                    "vaccinated": data.get("vaccinated", False),
-                    "record_count": data.get("record_count", 0),
-                })
+                results.append(WalletResult(
+                    wallet=wallet,
+                    vaccinated=data.get("vaccinated", False),
+                    record_count=data.get("record_count", 0),
+                ))
             except Exception as e:
-                results.append({"wallet": wallet, "error": str(e)})
+                results.append(WalletResult(wallet=wallet, error=str(e)))
 
-    return {"results": results, "total": len(results)}
+    return BatchVerifyResponse(results=results, total=len(results))

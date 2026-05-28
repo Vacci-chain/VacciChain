@@ -1,0 +1,24 @@
+# Docker Compose override for E2E CI testing.
+# Replaces TLS termination with plain HTTP on port 3000 so Playwright
+# can reach the frontend without certificates.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.e2e.yml up --build
+services:
+  frontend:
+    ports:
+      - "3000:80"
+    volumes:
+      # Override the TLS nginx config with an HTTP-only one
+      - ./frontend/nginx.e2e.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # Certbot is not needed in CI
+  certbot:
+    profiles:
+      - production

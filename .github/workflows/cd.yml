@@ -1,0 +1,62 @@
+name: CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "contracts/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contracts/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('contracts/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Install Stellar CLI
+        run: |
+          cargo install --locked stellar-cli --features opt
+
+      - name: Build WASM
+        run: make build
+
+      - name: Deploy to Stellar Testnet
+        id: deploy
+        env:
+          ADMIN_SECRET_KEY: ${{ secrets.ADMIN_SECRET_KEY }}
+        run: |
+          CONTRACT_ID=$(stellar contract deploy \
+            --wasm target/wasm32-unknown-unknown/release/vaccichain.wasm \
+            --source "$ADMIN_SECRET_KEY" \
+            --network testnet)
+          echo "contract_id=$CONTRACT_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Store contract ID as secret
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          gh secret set VACCINATIONS_CONTRACT_ID \
+            --body "${{ steps.deploy.outputs.contract_id }}" \
+            --repo "${{ github.repository }}"
+
+      - name: Print contract ID
+        run: echo "Deployed contract ID ${{ steps.deploy.outputs.contract_id }}"
