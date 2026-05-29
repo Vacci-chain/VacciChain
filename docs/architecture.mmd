@@ -1,0 +1,44 @@
+%% Architecture diagram for VacciChain
+%% Mermaid flowchart showing services and communication
+
+flowchart LR
+    subgraph Client
+        A[Patient Wallet / Freighter]
+        B[Issuer Wallet / Freighter]
+        C[Third-party Verifier]
+    end
+
+    subgraph Frontend
+        FFE[React UI]
+    end
+
+    subgraph Backend
+        BBE[Express API]
+        DB[(Postgres / Audit Log)]
+    end
+
+    subgraph PythonService
+        PS[FastAPI Analytics]
+    end
+
+    subgraph Contracts
+        SC[Soroban Contract]
+    end
+
+    subgraph StellarNetwork
+        SN[Stellar / Horizon]
+    end
+
+    A -->|Connect / Sign| FFE
+    B -->|Connect / Sign| FFE
+    FFE -->|POST /auth/sep10 / /vaccination/issue| BBE
+    BBE -->|invoke| SC
+    BBE -->|query / store events| DB
+    SC -->|submit tx| SN
+    SN -->|contract state / events| SC
+    PS -->|poll / webhook| BBE
+    C -->|GET /verify/:wallet| BBE
+    C -->|optional on-chain verification| SN
+
+    classDef external fill:#f9f,stroke:#333,stroke-width:1px
+    class SN,SC external

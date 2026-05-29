@@ -103,7 +103,12 @@ vacci-chain/
 ```
 
 See the [Folder Structure Guide](docs/folder-structure.md) for detailed descriptions of every directory and key file.
+ 
+See the visual architecture diagram in [docs/architecture.mmd](docs/architecture.mmd) and the rendered SVG [docs/architecture.svg](docs/architecture.svg) for a quick overview of service interactions.
 
+For an expanded developer setup walkthrough see [docs/setup-guide.md](docs/setup-guide.md).
+
+API integrators should consult the full API reference at [docs/api-reference.md](docs/api-reference.md).
 See [Troubleshooting Guide](docs/troubleshooting.md) for common contract deployment, backend startup, frontend build, and Docker issues.
 
 See [CHANGELOG](CHANGELOG.md) for release history and versioned feature tracking.
