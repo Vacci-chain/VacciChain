@@ -1,6 +1,8 @@
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
 const { getConsent, recordConsent, hasConsented } = require('../indexer/db');
+const validate = require('../middleware/validate');
+const { recordConsentSchema } = require('./schemas/consent.schemas');
 
 const router = express.Router();
 
@@ -18,7 +20,7 @@ router.get('/consent/:wallet', (req, res) => {
  * POST /patient/consent
  * Record explicit patient consent. Requires patient JWT.
  */
-router.post('/consent', authMiddleware, (req, res) => {
+router.post('/consent', authMiddleware, validate(recordConsentSchema), (req, res) => {
   const { publicKey } = req.user;
   if (getConsent(publicKey)) {
     return res.json({ success: true, wallet: publicKey, already_consented: true });

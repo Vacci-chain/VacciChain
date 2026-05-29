@@ -53,9 +53,19 @@ resource "aws_iam_role_policy" "secrets_read" {
   })
 }
 
-# ── CloudWatch log group ──────────────────────────────────────────────────────
-resource "aws_cloudwatch_log_group" "this" {
-  name              = "/ecs/${var.name}"
+# ── CloudWatch log groups (one per service) ───────────────────────────────────
+resource "aws_cloudwatch_log_group" "backend" {
+  name              = "/ecs/${var.name}/backend"
+  retention_in_days = 30
+}
+
+resource "aws_cloudwatch_log_group" "frontend" {
+  name              = "/ecs/${var.name}/frontend"
+  retention_in_days = 30
+}
+
+resource "aws_cloudwatch_log_group" "python_service" {
+  name              = "/ecs/${var.name}/python-service"
   retention_in_days = 30
 }
 
@@ -206,7 +216,7 @@ resource "aws_ecs_task_definition" "backend" {
     logConfiguration = {
       logDriver = "awslogs"
       options = {
-        "awslogs-group"         = aws_cloudwatch_log_group.this.name
+        "awslogs-group"         = aws_cloudwatch_log_group.backend.name
         "awslogs-region"        = data.aws_region.current.name
         "awslogs-stream-prefix" = "backend"
       }
@@ -259,7 +269,7 @@ resource "aws_ecs_task_definition" "frontend" {
     logConfiguration = {
       logDriver = "awslogs"
       options = {
-        "awslogs-group"         = aws_cloudwatch_log_group.this.name
+        "awslogs-group"         = aws_cloudwatch_log_group.frontend.name
         "awslogs-region"        = data.aws_region.current.name
         "awslogs-stream-prefix" = "frontend"
       }
@@ -286,6 +296,47 @@ resource "aws_ecs_service" "frontend" {
   }
 
   depends_on = [aws_lb_listener.http]
+}
+
+# ── Analytics (python-service) task definition ────────────────────────────────
+resource "aws_ecs_task_definition" "analytics" {
+  family                   = "${var.name}-python-service"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = 256
+  memory                   = 512
+  execution_role_arn       = aws_iam_role.execution.arn
+
+  container_definitions = jsonencode([{
+    name      = "python-service"
+    image     = var.analytics_image
+    essential = true
+    portMappings = [{ containerPort = 8001, protocol = "tcp" }]
+    environment = [
+      { name = "BACKEND_URL", value = "http://localhost:4000" },
+    ]
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = aws_cloudwatch_log_group.python_service.name
+        "awslogs-region"        = data.aws_region.current.name
+        "awslogs-stream-prefix" = "python-service"
+      }
+    }
+  }])
+}
+
+resource "aws_ecs_service" "analytics" {
+  name            = "${var.name}-python-service"
+  cluster         = aws_ecs_cluster.this.id
+  task_definition = aws_ecs_task_definition.analytics.arn
+  desired_count   = var.desired_count
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets         = var.private_subnets
+    security_groups = [aws_security_group.tasks.id]
+  }
 }
 
 output "alb_dns_name" { value = aws_lb.this.dns_name }

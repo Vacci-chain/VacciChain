@@ -1,6 +1,5 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const { z } = require('zod');
 const StellarSdk = require('@stellar/stellar-sdk');
 const { buildChallenge, verifyChallenge } = require('../stellar/sep10');
 const { sep10Limiter } = require('../middleware/rateLimiter');
@@ -8,24 +7,9 @@ const { audit } = require('../middleware/auditLog');
 const validate = require('../middleware/validate');
 const { bruteForceGuard, recordFailure, recordSuccess } = require('../middleware/bruteForce');
 const { getSigningKey } = require('../jwtKeys');
+const { sep10Schema, verifySchema } = require('./schemas/auth.schemas');
 
 const router = express.Router();
-
-const sep10Schema = z.object({
-  public_key: z.string().refine((val) => {
-    try {
-      StellarSdk.Keypair.fromPublicKey(val);
-      return true;
-    } catch {
-      return false;
-    }
-  }, { message: 'Invalid Stellar public key' }),
-});
-
-const verifySchema = z.object({
-  transaction: z.string().min(1, 'transaction is required'),
-  nonce: z.string().min(1, 'nonce is required'),
-});
 
 /**
  * @swagger

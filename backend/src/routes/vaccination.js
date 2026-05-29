@@ -1,30 +1,16 @@
 const express = require('express');
-const { z } = require('zod');
 const StellarSdk = require('@stellar/stellar-sdk');
 const authMiddleware = require('../middleware/auth');
 const issuerMiddleware = require('../middleware/issuer');
 const { validateStellarPublicKey } = require('../middleware/wallet');
 const { invokeContract, simulateContract, mintVaccination, sendRpcTimeout, SorobanTimeoutError } = require('../stellar/soroban');
-const { resolveContractErrorMessage } = require('../stellar/contractErrors');
+const { resolveContractErrorMessage, mapContractError } = require('../stellar/contractErrors');
 const { audit } = require('../middleware/auditLog');
 const validate = require('../middleware/validate');
 const { hasConsented } = require('../indexer/db');
+const { issueSchema, revokeSchema } = require('./schemas/vaccination.schemas');
 
 const router = express.Router();
-
-const issueSchema = z.object({
-  patient_address: z.string().min(1, 'patient_address is required'),
-  vaccine_name: z.string().min(1, 'vaccine_name is required'),
-  date_administered: z.string().refine((val) => !isNaN(Date.parse(val)), {
-    message: 'Invalid date format',
-  }),
-  dose_number: z.number().int().min(1).optional(),
-  dose_series: z.number().int().min(1).optional(),
-});
-
-const revokeSchema = z.object({
-  token_id: z.union([z.string(), z.number()]).transform((val) => String(val)),
-});
 
 /**
  * @swagger
@@ -134,6 +120,10 @@ router.post(
       result: 'failure',
       meta: { error: errorMessage },
     });
+    const mapped = mapContractError(err);
+    if (mapped?.name === 'DuplicateRecord') {
+      return res.status(409).json({ error: errorMessage });
+    }
     res.status(500).json({ error: errorMessage });
   }
 });

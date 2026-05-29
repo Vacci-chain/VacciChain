@@ -3,32 +3,50 @@ services:
     image: nginx:1.25-alpine
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./frontend/dist:/usr/share/nginx/html:ro
+      - ./certs:/etc/nginx/certs:ro
+      - certbot_webroot:/var/www/certbot:ro
     depends_on:
-      - backend
-      - python-service
+      backend:
+        condition: service_healthy
+      python-service:
+        condition: service_healthy
     networks:
       - vaccichain
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+
+  # Certbot for automatic Let's Encrypt certificate renewal.
+  # Run once to obtain initial cert: docker compose run --rm certbot certonly ...
+  certbot:
+    image: certbot/certbot:latest
+    volumes:
+      - ./certs:/etc/letsencrypt
+      - certbot_webroot:/var/www/certbot
+    entrypoint: /bin/sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot; sleep 12h & wait $${!}; done"
     restart: unless-stopped
 
   frontend:
     build: ./frontend
-    ports:
-      - "80:80"    # HTTP → HTTPS redirect only
-      - "443:443"  # TLS termination
+    # No ports exposed — nginx serves static assets from ./frontend/dist volume
     depends_on:
       backend:
         condition: service_healthy
     networks:
       - vaccichain
-    volumes:
-      # Mount TLS certificates (Let's Encrypt / Certbot or your own PKI).
-      # In production, replace with a secrets manager or Kubernetes secret mount.
-      - ./certs:/etc/nginx/certs:ro
-      # ACME challenge directory for certificate renewal
-      - certbot_webroot:/var/www/certbot:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:80"]
       interval: 10s
@@ -49,9 +67,6 @@ services:
     deploy:
       resources:
         limits:
-          # nginx serving pre-built static assets + TLS termination.
-          # 0.10 CPU covers TLS handshakes + gzip at ~50 req/s.
-          # 64 MB covers nginx worker processes with TLS session cache.
           cpus: "0.10"
           memory: 64M
         reservations:
@@ -64,20 +79,9 @@ services:
         max-file: "3"
     restart: unless-stopped
 
-  # Certbot for automatic Let's Encrypt certificate renewal.
-  # Run once to obtain initial cert: docker compose run --rm certbot certonly ...
-  certbot:
-    image: certbot/certbot:latest
-    volumes:
-      - ./certs:/etc/letsencrypt
-      - certbot_webroot:/var/www/certbot
-    entrypoint: /bin/sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot; sleep 12h & wait $${!}; done"
-    restart: unless-stopped
-
   backend:
     build: ./backend
-    ports:
-      - "4000:4000"
+    # No host port — only reachable via nginx on the internal network
     env_file: .env
     environment:
       - EVENT_POLL_INTERVAL_MS=${EVENT_POLL_INTERVAL_MS:-15000}
@@ -102,10 +106,6 @@ services:
     deploy:
       resources:
         limits:
-          # Node.js heap for Express + Stellar SDK sits ~80–100 MB at rest.
-          # Soroban RPC calls are CPU-light but allocate XDR buffers transiently.
-          # 0.75 CPU allows burst during contract invocations without starving neighbours.
-          # 256 MB gives 2× headroom over observed peak; OOM before host pressure.
           cpus: "0.75"
           memory: 256M
         reservations:
@@ -120,11 +120,8 @@ services:
 
   python-service:
     build: ./python-service
-    ports:
-      - "8001:8001"
-    environment:
-      - BACKEND_URL=http://backend:4000
-      - ANOMALY_THRESHOLD=${ANOMALY_THRESHOLD:-50}
+    # No host port — only reachable via nginx on the internal network
+    env_file: .env
     networks:
       - vaccichain
     healthcheck:
@@ -143,10 +140,6 @@ services:
     deploy:
       resources:
         limits:
-          # FastAPI/uvicorn with httpx fan-out to Stellar Horizon.
-          # Python baseline ~60 MB; analytics aggregation adds ~20 MB transiently.
-          # 0.50 CPU handles concurrent async I/O without blocking the event loop.
-          # 128 MB is 2× observed peak; keeps service isolated from backend OOM events.
           cpus: "0.50"
           memory: 128M
         reservations:
@@ -166,6 +159,12 @@ services:
       - vaccichain_db:/data
     networks:
       - vaccichain
+    healthcheck:
+      test: ["CMD", "sh", "-c", "test -f /data/vaccichain.db"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     logging:
       driver: json-file
       options:

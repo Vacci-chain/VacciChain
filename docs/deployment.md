@@ -25,7 +25,8 @@ This guide covers deploying VacciChain to a production environment on AWS ECS Fa
 8. [TLS and Domain Configuration](#8-tls-and-domain-configuration)
 9. [Verifying a Successful Deployment](#9-verifying-a-successful-deployment)
 10. [Monitoring and Alerting](#10-monitoring-and-alerting)
-11. [Rollback Procedure](#11-rollback-procedure)
+11. [CloudWatch Logs](#11-cloudwatch-logs)
+12. [Rollback Procedure](#12-rollback-procedure)
 
 ---
 
@@ -644,7 +645,63 @@ aws ecs execute-command \
 
 ---
 
-## 11. Rollback Procedure
+## 11. CloudWatch Logs
+
+All services ship logs to CloudWatch Logs via the `awslogs` log driver configured in each ECS task definition.
+
+### Log Groups
+
+Each service writes to its own log group, named by environment:
+
+| Service | Log Group |
+|---|---|
+| Backend | `/ecs/vaccichain-{env}/backend` |
+| Frontend | `/ecs/vaccichain-{env}/frontend` |
+| Python service | `/ecs/vaccichain-{env}/python-service` |
+
+Where `{env}` is `staging` or `production`. Log groups are created by Terraform (`infra/modules/ecs/main.tf`) with **30-day retention**.
+
+### Viewing Logs
+
+```bash
+# Tail backend logs (replace REGION and ENV as needed)
+aws logs tail /ecs/vaccichain-production/backend --follow --region us-east-1
+
+# Tail python-service logs
+aws logs tail /ecs/vaccichain-production/python-service --follow --region us-east-1
+```
+
+### Querying Structured JSON Logs (CloudWatch Insights)
+
+The backend emits structured JSON logs via Winston. Use CloudWatch Logs Insights to query them:
+
+1. Open **CloudWatch → Logs Insights** in the AWS Console.
+2. Select the log group `/ecs/vaccichain-{env}/backend`.
+3. Example queries:
+
+```
+# All errors in the last hour
+fields @timestamp, level, message, requestId
+| filter level = "error"
+| sort @timestamp desc
+| limit 50
+```
+
+```
+# Request latency by route
+fields @timestamp, message, responseTime, path
+| filter ispresent(responseTime)
+| stats avg(responseTime), max(responseTime) by path
+| sort avg(responseTime) desc
+```
+
+### IAM Permissions
+
+The ECS task execution role (`ecsTaskExecutionRole`) is granted `logs:CreateLogStream` and `logs:PutLogEvents` via the `AmazonECSTaskExecutionRolePolicy` managed policy. No additional IAM changes are required.
+
+---
+
+## 12. Rollback Procedure
 
 ### 11.1 Rolling Back a Service
 

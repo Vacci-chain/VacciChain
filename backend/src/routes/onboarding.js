@@ -8,7 +8,6 @@
 
 const express = require('express');
 const crypto = require('crypto');
-const { z } = require('zod');
 const authMiddleware = require('../middleware/auth');
 const validate = require('../middleware/validate');
 const { audit } = require('../middleware/auditLog');
@@ -20,6 +19,7 @@ const {
   listIssuerApplications,
   updateIssuerApplicationStatus,
 } = require('../indexer/db');
+const { applySchema, reviewSchema } = require('./schemas/onboarding.schemas');
 
 const router = express.Router();
 
@@ -29,21 +29,6 @@ function adminOnly(req, res, next) {
   }
   next();
 }
-
-const applySchema = z.object({
-  name:           z.string().min(2).max(120),
-  license_number: z.string().min(1).max(60),
-  country:        z.string().min(2).max(60),
-  wallet:         z.string().min(56).max(56),
-});
-
-const reviewSchema = z.object({
-  decision:      z.enum(['approved', 'rejected']),
-  reviewer_note: z.string().max(500).optional(),
-});
-
-/**
- * POST /onboarding/apply
  * Any authenticated user can submit an onboarding request.
  */
 router.post('/apply', authMiddleware, validate(applySchema), async (req, res) => {

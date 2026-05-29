@@ -8,8 +8,10 @@ const { insertApiKey, listApiKeys, revokeApiKey } = require('../indexer/db');
 const { rotateKey, reloadFromEnv } = require('../jwtKeys');
 const { approveProposal, getProposal } = require('../middleware/multiSig');
 const { isValidStellarPublicKey } = require('../middleware/wallet');
-const { addIssuer, revokeIssuer } = require('../stellar/soroban');
+const { addIssuer, revokeIssuer, simulateContract } = require('../stellar/soroban');
 const { isAuthorizedIssuer, invalidateCache } = require('../stellar/issuerCache');
+const validate = require('../middleware/validate');
+const { addIssuerSchema, createApiKeySchema, rotateJwtSchema, approveProposalSchema } = require('./schemas/admin.schemas');
 
 const router = express.Router();
 
@@ -29,11 +31,8 @@ function adminOnly(req, res, next) {
  * Body: { address: string }
  * Authorizes a new issuer on-chain via add_issuer contract call.
  */
-router.post('/issuers', adminAuthMiddleware, adminOnly, async (req, res) => {
+router.post('/issuers', adminAuthMiddleware, adminOnly, validate(addIssuerSchema), async (req, res) => {
   const { address } = req.body;
-  if (!address || !isValidStellarPublicKey(address)) {
-    return res.status(400).json({ error: 'Invalid Stellar public key' });
-  }
 
   try {
     const result = await addIssuer(address);
@@ -113,11 +112,8 @@ router.get('/audit', adminAuthMiddleware, adminOnly, (req, res) => {
 
 // ── API key management ────────────────────────────────────────────────────────
 
-router.post('/api-keys', adminAuthMiddleware, adminOnly, (req, res) => {
+router.post('/api-keys', adminAuthMiddleware, adminOnly, validate(createApiKeySchema), (req, res) => {
   const { label } = req.body;
-  if (!label || typeof label !== 'string' || !label.trim()) {
-    return res.status(400).json({ error: 'label is required' });
-  }
 
   const rawKey  = crypto.randomBytes(32).toString('hex');
   const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
@@ -154,17 +150,13 @@ router.delete('/api-keys/:id', adminAuthMiddleware, adminOnly, (req, res) => {
  *
  * Requires admin role.
  */
-router.post('/jwt/rotate', adminAuthMiddleware, adminOnly, (req, res) => {
+router.post('/jwt/rotate', adminAuthMiddleware, adminOnly, validate(rotateJwtSchema), (req, res) => {
   const { new_secret, new_kid, reload_from_env } = req.body;
 
   try {
     if (reload_from_env) {
       reloadFromEnv();
       return res.json({ rotated: true, method: 'env_reload' });
-    }
-
-    if (!new_secret || typeof new_secret !== 'string' || new_secret.trim().length < 32) {
-      return res.status(400).json({ error: 'new_secret must be at least 32 characters' });
     }
 
     rotateKey({ newSecret: new_secret, newKid: new_kid });
@@ -185,11 +177,8 @@ router.post('/jwt/rotate', adminAuthMiddleware, adminOnly, (req, res) => {
  * "approved" and the initiator can re-submit the original request with
  * the proposal_id to execute it.
  */
-router.post('/multisig/approve', adminAuthMiddleware, adminOnly, (req, res) => {
+router.post('/multisig/approve', adminAuthMiddleware, adminOnly, validate(approveProposalSchema), (req, res) => {
   const { proposal_id } = req.body;
-  if (!proposal_id) {
-    return res.status(400).json({ error: 'proposal_id is required' });
-  }
 
   try {
     const proposal = approveProposal(proposal_id, req.user.wallet);

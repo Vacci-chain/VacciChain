@@ -7,3 +7,4 @@ structlog==24.1.0
 apscheduler==3.10.4
 PyJWT==2.8.0
 slowapi==0.1.9
+flake8==7.0.0
