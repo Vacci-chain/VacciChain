@@ -24,6 +24,7 @@ const { getHealthStatus, startHealthProbe } = require('./health');
 
 const requestId = require('./middleware/requestId');
 const { sanitizeInputs } = require('./middleware/sanitize');
+const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean);
@@ -86,6 +87,9 @@ app.use(['/auth', '/vaccination', '/verify', '/admin', '/patient', '/events'], (
   res.setHeader('Deprecation', 'true');
   res.redirect(308, `/v1${req.originalUrl}`);
 });
+
+// Global error handler — must be registered after all routes
+app.use(errorHandler);
 
 
 /**
