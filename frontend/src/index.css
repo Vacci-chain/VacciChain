@@ -13,6 +13,8 @@
   --role-patient-border: #7dd3fc;
   --role-issuer-bg: #dcfce7;
   --role-issuer-text: #16a34a;
+  --focus-ring: #0284c7;
+  --focus-ring-offset: #ffffff;
 }
 
 .dark {
@@ -30,6 +32,8 @@
   --role-patient-border: #0ea5e9;
   --role-issuer-bg: #052e16;
   --role-issuer-text: #4ade80;
+  --focus-ring: #38bdf8;
+  --focus-ring-offset: #0f172a;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -37,6 +41,35 @@ body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--t
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 button { cursor: pointer; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* Default focus styles for interactive elements */
+:focus-visible { 
+  outline: 2px solid var(--focus-ring); 
+  outline-offset: 3px; 
+}
+
+/* Custom focus styles for form inputs */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--focus-ring-offset), 0 0 0 4px var(--focus-ring);
+  border-color: var(--focus-ring);
+}
+
+/* Focus styles for buttons */
+button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Ensure readonly inputs still have visible focus */
+input[readonly]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--focus-ring-offset), 0 0 0 4px var(--focus-ring);
+  border-color: var(--focus-ring);
+  opacity: 0.8;
+}
+
 nav a { color: var(--nav-text); }
 nav a[aria-current="page"] { color: var(--accent); font-weight: 600; }
