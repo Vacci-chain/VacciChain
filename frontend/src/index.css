@@ -37,6 +37,6 @@ body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--t
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 button { cursor: pointer; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 nav a { color: var(--nav-text); }
 nav a[aria-current="page"] { color: var(--accent); font-weight: 600; }

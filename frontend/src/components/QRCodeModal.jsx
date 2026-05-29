@@ -1,14 +1,46 @@
 import { useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 
+function getFocusableElements(root) {
+  if (!root) return [];
+  const selectors = 'a[href],button:not([disabled]),textarea, input, select, [tabindex]:not([tabindex="-1"])';
+  return Array.from(root.querySelectorAll(selectors)).filter((el) => el.offsetParent !== null);
+}
+
 export default function QRCodeModal({ url, onClose }) {
   const canvasRef = useRef(null);
+  const overlayRef = useRef(null);
+  const modalRef = useRef(null);
+  const previousActive = useRef(null);
 
   useEffect(() => {
     if (canvasRef.current) {
       QRCode.toCanvas(canvasRef.current, url, { width: 256, margin: 2 });
     }
   }, [url]);
+
+  useEffect(() => {
+    previousActive.current = document.activeElement;
+    const nodes = getFocusableElements(modalRef.current);
+    (nodes[0] || modalRef.current)?.focus?.();
+
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+      if (e.key === 'Tab') {
+        const nodes = getFocusableElements(modalRef.current);
+        if (nodes.length === 0) { e.preventDefault(); return; }
+        const idx = nodes.indexOf(document.activeElement);
+        if (e.shiftKey) {
+          if (idx === 0 || document.activeElement === modalRef.current) { nodes[nodes.length - 1].focus(); e.preventDefault(); }
+        } else {
+          if (idx === nodes.length - 1) { nodes[0].focus(); e.preventDefault(); }
+        }
+      }
+    };
+
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('keydown', onKey); previousActive.current?.focus?.(); };
+  }, [onClose]);
 
   const handleDownload = () => {
     const link = document.createElement('a');
@@ -22,7 +54,8 @@ export default function QRCodeModal({ url, onClose }) {
       role="dialog"
       aria-modal="true"
       aria-label="Vaccination QR Code"
-      onClick={onClose}
+      onClick={(e) => e.target === overlayRef.current && onClose()}
+      ref={overlayRef}
       style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
@@ -30,6 +63,8 @@ export default function QRCodeModal({ url, onClose }) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
+        ref={modalRef}
+        tabIndex={-1}
         style={{
           background: '#1e293b', borderRadius: 12, padding: '1.5rem',
           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem',
