@@ -40,3 +40,4 @@ button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 nav a { color: var(--nav-text); }
 nav a[aria-current="page"] { color: var(--accent); font-weight: 600; }
+#main-content:focus { outline: none; }

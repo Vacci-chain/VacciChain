@@ -3,16 +3,6 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
-    "@stellar/freighter-api": "^2.0.0",
-    "@stellar/stellar-sdk": "^12.0.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.22.0"
-  },
-  "devDependencies": {
-    "@playwright/test": "^1.60.0",
-    "@vitejs/plugin-react": "^4.2.1",
-    "vite": "^5.1.4"
     "@stellar/freighter-api": "2.0.0",
     "@stellar/stellar-sdk": "12.3.0",
     "i18next": "23.16.8",
@@ -43,16 +33,13 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "playwright test",
-    "test:ui": "playwright test --ui",
-    "test:headed": "playwright test --headed",
-    "test:xss": "playwright test xss-security.spec.js",
-    "test:report": "playwright show-report"
     "lint": "eslint src",
     "test": "jest",
     "test:coverage": "jest --coverage --coverageThreshold '{\"global\":{\"lines\":70,\"statements\":70,\"functions\":70,\"branches\":70}}'",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:debug": "playwright test --debug"
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:xss": "playwright test xss-security.spec.js",
+    "test:e2e:report": "playwright show-report"
   }
 }
