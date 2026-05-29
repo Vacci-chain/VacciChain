@@ -104,6 +104,10 @@ vacci-chain/
 
 See the [Folder Structure Guide](docs/folder-structure.md) for detailed descriptions of every directory and key file.
 
+See [Troubleshooting Guide](docs/troubleshooting.md) for common contract deployment, backend startup, frontend build, and Docker issues.
+
+See [CHANGELOG](CHANGELOG.md) for release history and versioned feature tracking.
+
 ---
 
 ##  Tech Stack

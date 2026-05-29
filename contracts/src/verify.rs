@@ -7,15 +7,28 @@ const MAX_BATCH_SIZE: u32 = 100;
 #[contracttype]
 #[derive(Clone)]
 pub struct DoseStatus {
+    /// The vaccine name for this dose summary.
     pub vaccine_name: String,
-    /// Highest dose_number seen across non-revoked records for this vaccine.
+    /// Highest dose number received for this vaccine.
     pub doses_received: u32,
-    /// dose_series from the record with the highest dose_number (0 = unknown / single-dose).
+    /// Required total doses for this vaccine series.
     pub doses_required: u32,
-    /// True when doses_required > 0 && doses_received >= doses_required.
+    /// True when the required number of doses has been completed.
     pub complete: bool,
 }
 
+/// Batch verify vaccination status for multiple wallets.
+///
+/// This function is an optimized convenience wrapper for `verify_vaccination`.
+/// It succeeds for up to `MAX_BATCH_SIZE` wallets and returns a tuple for each wallet:
+/// `(wallet, vaccinated, records)`.
+///
+/// # Arguments
+/// * `env` - The Soroban environment.
+/// * `wallets` - Vector of wallet addresses to verify.
+///
+/// # Returns
+/// * `Vec<(Address, bool, Vec<VaccinationRecord>)>` where the bool indicates whether the wallet has any active vaccination records.
 pub fn batch_verify(env: &Env, wallets: Vec<Address>) -> Vec<(Address, bool, Vec<VaccinationRecord>)> {
     assert!(wallets.len() <= MAX_BATCH_SIZE, "batch size exceeds maximum of 100");
 
@@ -28,6 +41,20 @@ pub fn batch_verify(env: &Env, wallets: Vec<Address>) -> Vec<(Address, bool, Vec
     results
 }
 
+/// Verify vaccination status for a single wallet.
+///
+/// Returns whether the wallet has at least one active (non-revoked) record, the
+/// list of active vaccination records, and a per-vaccine dose completion summary.
+///
+/// # Arguments
+/// * `env` - The Soroban environment.
+/// * `wallet` - The wallet address to check.
+///
+/// # Returns
+/// * `(bool, Vec<VaccinationRecord>, Vec<DoseStatus>)`
+///   - bool: wallet has at least one active record
+///   - Vec<VaccinationRecord>: active vaccination records
+///   - Vec<DoseStatus>: per-vaccine dose completion summary
 pub fn verify_vaccination(env: &Env, wallet: Address) -> (bool, Vec<VaccinationRecord>, Vec<DoseStatus>) {
     let tokens: Vec<u64> = env
         .storage()
@@ -42,6 +69,7 @@ pub fn verify_vaccination(env: &Env, wallet: Address) -> (bool, Vec<VaccinationR
     let mut records: Vec<VaccinationRecord> = Vec::new(env);
     let mut has_active = false;
 
+    // Load all active (non-revoked) records for the wallet.
     for i in 0..tokens.len() {
         let tid = tokens.get(i).unwrap();
         if let Some(record) = env.storage().persistent().get::<DataKey, VaccinationRecord>(&DataKey::Token(tid)) {
@@ -53,8 +81,8 @@ pub fn verify_vaccination(env: &Env, wallet: Address) -> (bool, Vec<VaccinationR
     }
 
     // Build per-vaccine dose status.
-    // We track (doses_received, doses_required) per vaccine name.
-    // Using parallel vecs since no_std Map isn't available.
+    // We track highest dose_number and highest dose_series seen for each vaccine.
+    // Parallel vecs are used because a no_std map implementation is unavailable.
     let mut vaccine_names: Vec<String> = Vec::new(env);
     let mut doses_received: Vec<u32> = Vec::new(env);
     let mut doses_required: Vec<u32> = Vec::new(env);
@@ -64,7 +92,6 @@ pub fn verify_vaccination(env: &Env, wallet: Address) -> (bool, Vec<VaccinationR
         let dn = rec.dose_number.unwrap_or(0);
         let ds = rec.dose_series.unwrap_or(0);
 
-        // Find existing entry for this vaccine name
         let mut found = false;
         for j in 0..vaccine_names.len() {
             if vaccine_names.get(j).unwrap() == rec.vaccine_name {

@@ -373,10 +373,11 @@ aws logs tail /ecs/vaccichain-staging --follow --since 10m
 
 When staging is verified and ready:
 
-1. Create a release tag: `git tag v1.0.0`
-2. Push tag: `git push origin v1.0.0`
-3. Trigger production deployment: `gh workflow run deploy.yml -f network=mainnet`
-4. Monitor production deployment
+1. Update `CHANGELOG.md` with release notes for the new version.
+2. Create a release tag: `git tag v1.0.0`
+3. Push tag: `git push origin v1.0.0`
+4. Trigger production deployment: `gh workflow run deploy.yml -f network=mainnet`
+5. Monitor production deployment
 
 ## Cost Optimization
 
