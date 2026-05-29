@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import DarkModeToggle from './DarkModeToggle';
 
@@ -16,6 +16,9 @@ export default function NavBar({ dark, onToggleDark }) {
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
 
+  const hamburgerRef = useRef(null);
+  const linksRef = useRef(null);
+
   const close = useCallback(() => setOpen(false), []);
 
   // Close on Escape
@@ -25,6 +28,18 @@ export default function NavBar({ dark, onToggleDark }) {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [open, close]);
+
+  // When menu opens on small screens, move focus into the menu; restore when closed
+  useEffect(() => {
+    if (open) {
+      // focus first link inside nav-links
+      const firstLink = linksRef.current?.querySelector('a, button');
+      firstLink?.focus?.();
+    } else {
+      // restore focus to hamburger button when closing
+      hamburgerRef.current?.focus?.();
+    }
+  }, [open]);
 
   // Close when route changes
   useEffect(() => { close(); }, [pathname, close]);
@@ -39,6 +54,7 @@ export default function NavBar({ dark, onToggleDark }) {
         aria-expanded={open}
         aria-controls="nav-links"
         onClick={() => setOpen((v) => !v)}
+        ref={hamburgerRef}
         style={{
           display: 'none',
           background: 'none',
@@ -58,6 +74,7 @@ export default function NavBar({ dark, onToggleDark }) {
         id="nav-links"
         className="nav-links"
         style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap' }}
+        ref={linksRef}
       >
         {NAV_LINKS.map(({ to, label }) => (
           <Link
