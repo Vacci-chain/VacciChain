@@ -41,35 +41,7 @@ body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--t
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 button { cursor: pointer; }
-
-/* Default focus styles for interactive elements */
-:focus-visible { 
-  outline: 2px solid var(--focus-ring); 
-  outline-offset: 3px; 
-}
-
-/* Custom focus styles for form inputs */
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--focus-ring-offset), 0 0 0 4px var(--focus-ring);
-  border-color: var(--focus-ring);
-}
-
-/* Focus styles for buttons */
-button:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
-/* Ensure readonly inputs still have visible focus */
-input[readonly]:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--focus-ring-offset), 0 0 0 4px var(--focus-ring);
-  border-color: var(--focus-ring);
-  opacity: 0.8;
-}
-
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 nav a { color: var(--nav-text); }
 nav a[aria-current="page"] { color: var(--accent); font-weight: 600; }
+#main-content:focus { outline: none; }
