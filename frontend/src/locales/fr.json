@@ -1,4 +1,7 @@
 {
+  "accessibility": {
+    "skipToContent": "Aller au contenu principal"
+  },
   "nav": {
     "home": "Accueil",
     "myRecords": "Mes dossiers",
