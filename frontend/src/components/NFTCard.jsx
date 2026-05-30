@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import CopyButton from './CopyButton';
+import Tooltip from './Tooltip';
 import NFTCardSkeleton from './NFTCardSkeleton';
 
 async function exportCertificate(record) {
@@ -94,20 +95,26 @@ export default function NFTCard({ record, onClick, loading = false }) {
         Date: {record.date_administered}
       </p>
       <p style={{ color: '#94a3b8', fontSize: '0.8rem', marginTop: '0.25rem' }}>
-        Issuer: {record.issuer?.slice(0, 8)}…{record.issuer?.slice(-4)}
+        Issuer: <Tooltip text={record.issuer} position="top">
+          <span style={{ cursor: 'help', borderBottom: '1px dotted #94a3b8' }}>
+            {record.issuer?.slice(0, 8)}…{record.issuer?.slice(-4)}
+          </span>
+        </Tooltip>
       </p>
       <button
         aria-label={`Export certificate for ${record.vaccine_name}`}
         onClick={(e) => { e.stopPropagation(); exportCertificate(record); }}
         style={{
           marginTop: '0.75rem',
-          padding: '0.35rem 0.85rem',
+          padding: '0.5rem 0.85rem',
           fontSize: '0.8rem',
           background: 'transparent',
           border: '1px solid #38bdf8',
           borderRadius: 6,
           color: '#38bdf8',
           cursor: 'pointer',
+          minHeight: '32px',
+          minWidth: '32px',
         }}
       >
         📄 {t('exportCertificate', 'Export Certificate')}

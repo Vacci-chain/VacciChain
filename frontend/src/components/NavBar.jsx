@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import DarkModeToggle from './DarkModeToggle';
+import Tooltip from './Tooltip';
 import { useAuth } from '../hooks/useFreighter';
 
 const NAV_LINKS = [
@@ -36,13 +37,15 @@ function WalletIndicator() {
       <button
         onClick={connect}
         style={{
-          padding: '0.4rem 1rem',
+          padding: '0.6rem 1rem',
           background: 'var(--btn-primary)',
           color: '#fff',
           border: 'none',
           borderRadius: 6,
           fontSize: '0.85rem',
           cursor: 'pointer',
+          minHeight: '44px',
+          minWidth: '44px',
         }}
       >
         Connect Wallet
@@ -58,29 +61,33 @@ function WalletIndicator() {
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-haspopup="true"
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '0.4rem',
-          padding: '0.4rem 0.75rem',
-          background: '#1e293b',
-          border: '1px solid #334155',
-          borderRadius: 6,
-          color: '#e2e8f0',
-          fontSize: '0.85rem',
-          cursor: 'pointer',
-        }}
-      >
-        <span
-          aria-hidden="true"
-          style={{ width: 8, height: 8, borderRadius: '50%', background: '#4ade80', display: 'inline-block' }}
-        />
-        {truncate(publicKey)}
-      </button>
+      <Tooltip text={`Wallet: ${truncate(publicKey)}`} position="bottom">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-haspopup="true"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            padding: '0.6rem 0.75rem',
+            background: '#1e293b',
+            border: '1px solid #334155',
+            borderRadius: 6,
+            color: '#e2e8f0',
+            fontSize: '0.85rem',
+            cursor: 'pointer',
+            minHeight: '44px',
+            minWidth: '44px',
+          }}
+        >
+          <span
+            aria-hidden="true"
+            style={{ width: 8, height: 8, borderRadius: '50%', background: '#4ade80', display: 'inline-block' }}
+          />
+          {truncate(publicKey)}
+        </button>
+      </Tooltip>
 
       {open && (
         <div
@@ -107,7 +114,7 @@ function WalletIndicator() {
             <button
               onClick={handleCopy}
               style={{
-                padding: '0.25rem 0.6rem',
+                padding: '0.4rem 0.6rem',
                 fontSize: '0.75rem',
                 background: 'transparent',
                 border: '1px solid #334155',
@@ -115,6 +122,8 @@ function WalletIndicator() {
                 color: '#e2e8f0',
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
+                minHeight: '32px',
+                minWidth: '32px',
               }}
             >
               {copied ? 'Copied!' : 'Copy'}
@@ -123,7 +132,7 @@ function WalletIndicator() {
           <button
             onClick={() => { disconnect(); setOpen(false); }}
             style={{
-              padding: '0.35rem 0.75rem',
+              padding: '0.5rem 0.75rem',
               background: 'transparent',
               border: '1px solid #f87171',
               borderRadius: 4,
@@ -131,6 +140,7 @@ function WalletIndicator() {
               fontSize: '0.8rem',
               cursor: 'pointer',
               textAlign: 'left',
+              minHeight: '44px',
             }}
           >
             Disconnect
@@ -191,7 +201,10 @@ export default function NavBar({ dark, onToggleDark }) {
           color: '#e2e8f0',
           fontSize: '1.5rem',
           lineHeight: 1,
-          padding: '0.25rem',
+          padding: '0.5rem',
+          minHeight: '44px',
+          minWidth: '44px',
+          cursor: 'pointer',
         }}
         className="nav-hamburger"
       >
