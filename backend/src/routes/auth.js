@@ -114,14 +114,17 @@ router.post('/sep10', sep10Limiter, validate(sep10Schema), async (req, res) => {
  *       429:
  *         description: Rate limit exceeded (max 10 requests per IP per minute)
  */
-router.post('/verify', sep10VerifyLimiter, validate(verifySchema), bruteForceGuard, (req, res) => {
-  const { transaction, nonce } = req.body;
+const { isAuthorizedIssuer } = require('../middleware/issuer');
+
+router.post('/verify', sep10VerifyLimiter, validate(verifySchema), bruteForceGuard, async (req, res) => {
+  const { transaction, signed_tx, nonce } = req.body;
+  const tx = transaction || signed_tx;
   const ip = req.ip || req.socket?.remoteAddress || 'unknown';
 
   try {
-    const publicKey = verifyChallenge(transaction, nonce);
-
-    const role = publicKey === process.env.ADMIN_PUBLIC_KEY ? 'admin' : 'patient';
+    const publicKey = verifyChallenge(tx, nonce);
+    const isIssuer = await isAuthorizedIssuer(publicKey);
+    const role = isIssuer ? 'issuer' : 'patient';
     const now = Math.floor(Date.now() / 1000);
     const signingKey = getSigningKey();
 
@@ -145,11 +148,10 @@ router.post('/verify', sep10VerifyLimiter, validate(verifySchema), bruteForceGua
     // Attempt to extract wallet from the transaction for per-wallet tracking
     let wallet = null;
     try {
-      const tx = StellarSdk.TransactionBuilder.fromXDR(transaction, process.env.STELLAR_NETWORK_PASSPHRASE || 'Test SDF Network ; September 2015');
-      wallet = tx.source;
+      const txObj = StellarSdk.TransactionBuilder.fromXDR(transaction, process.env.STELLAR_NETWORK_PASSPHRASE || 'Test SDF Network ; September 2015');
+      wallet = txObj.source;
     } catch (_) { /* ignore parse errors */ }
 
-    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
     recordFailure(`ip:${ip}`, { ip, wallet });
     if (wallet) recordFailure(`wallet:${wallet}`, { ip, wallet });
 
