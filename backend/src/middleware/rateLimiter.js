@@ -14,6 +14,7 @@ const make = (maxEnvVar, defaultMax, keyGen) =>
 module.exports = {
   verifyLimiter:    make('RATE_LIMIT_VERIFY', 60),
   sep10Limiter:     make('RATE_LIMIT_SEP10', 10),
+  sep10VerifyLimiter: make('RATE_LIMIT_SEP10_VERIFY', 10),
   // Keyed by verifier API key id so each third-party has its own bucket
   verifierKeyLimiter: make('RATE_LIMIT_VERIFIER_KEY', 120, (req) => req.verifier?.id ?? req.ip),
 };

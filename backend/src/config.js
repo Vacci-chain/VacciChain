@@ -37,6 +37,12 @@ const schema = z.object({
   // Request limits
   BODY_LIMIT: z.string().default('10kb'),
 
+  // Rate limiting (requests per IP per minute)
+  RATE_LIMIT_SEP10: z.coerce.number().int().positive().default(10),
+  RATE_LIMIT_SEP10_VERIFY: z.coerce.number().int().positive().default(10),
+  RATE_LIMIT_VERIFY: z.coerce.number().int().positive().default(60),
+  RATE_LIMIT_VERIFIER_KEY: z.coerce.number().int().positive().default(120),
+
   // Indexer
   EVENT_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(15000),
   DATABASE_PATH: z.string().default('/data/vaccichain.db'),
