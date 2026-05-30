@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../hooks/useFreighter';
+import Tooltip from '../components/Tooltip';
 
 const ANALYTICS_BASE = import.meta.env.VITE_ANALYTICS_URL || 'http://localhost:8001';
 const REFRESH_INTERVAL = 60_000;
@@ -14,11 +15,11 @@ const s = {
   error: { color: '#f87171', padding: '0.75rem', background: '#1e293b', borderRadius: 8, marginBottom: '1rem' },
   loading: { color: '#64748b', textAlign: 'center', padding: '2rem 0' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' },
-  th: { textAlign: 'left', color: '#64748b', fontWeight: 500, padding: '0.5rem 0.75rem', borderBottom: '1px solid #1e293b' },
-  td: { padding: '0.6rem 0.75rem', color: '#e2e8f0', borderBottom: '1px solid #1e293b' },
+  th: { textAlign: 'left', color: '#64748b', fontWeight: 500, padding: '0.75rem', borderBottom: '1px solid #1e293b' },
+  td: { padding: '0.75rem', color: '#e2e8f0', borderBottom: '1px solid #1e293b' },
   badge: (severity) => ({
     display: 'inline-block',
-    padding: '0.2rem 0.6rem',
+    padding: '0.25rem 0.75rem',
     borderRadius: 4,
     fontSize: '0.75rem',
     fontWeight: 600,
@@ -41,9 +42,11 @@ function BarChart({ data }) {
     <div style={s.barWrap} role="list" aria-label="Vaccination rates by vaccine type">
       {data.map((d) => (
         <div key={d.vaccine_name} style={s.barRow} role="listitem">
-          <span style={s.barLabel} title={d.vaccine_name}>
-            {d.vaccine_name.length > 18 ? d.vaccine_name.slice(0, 17) + '…' : d.vaccine_name}
-          </span>
+          <Tooltip text={d.vaccine_name} position="right">
+            <span style={s.barLabel} title={d.vaccine_name}>
+              {d.vaccine_name.length > 18 ? d.vaccine_name.slice(0, 17) + '…' : d.vaccine_name}
+            </span>
+          </Tooltip>
           <div style={s.barTrack} aria-label={`${d.vaccine_name}: ${d.count} doses`}>
             <div style={s.barFill(Math.round((d.count / max) * 100))} />
           </div>
