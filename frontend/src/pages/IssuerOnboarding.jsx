@@ -1,18 +1,20 @@
 import { useState } from 'react';
 import { useAuth } from '../hooks/useFreighter';
+import { useToast } from '../hooks/useToast';
 
 const s = {
   page:   { maxWidth: 520, width: '100%', margin: '2rem auto', padding: '0 1rem', boxSizing: 'border-box' },
   field:  { display: 'flex', flexDirection: 'column', gap: '0.35rem', marginBottom: '1rem' },
   label:  { color: '#94a3b8', fontSize: '0.85rem' },
-  input:  { padding: '0.5rem 0.75rem', background: '#1e293b', border: '1px solid #334155', borderRadius: 6, color: '#e2e8f0', fontSize: '0.9rem' },
-  btn:    { padding: '0.55rem 1.25rem', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '0.9rem', marginTop: '0.5rem' },
+  input:  { padding: '0.6rem 0.75rem', background: '#1e293b', border: '1px solid #334155', borderRadius: 6, color: '#e2e8f0', fontSize: '0.9rem', minHeight: '44px' },
+  btn:    { padding: '0.7rem 1.25rem', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '0.9rem', marginTop: '0.5rem', minHeight: '44px' },
   success:{ marginTop: '1rem', padding: '0.75rem 1rem', background: '#14532d', borderRadius: 8, color: '#86efac', fontSize: '0.9rem' },
   error:  { marginTop: '0.5rem', color: '#f87171', fontSize: '0.9rem' },
 };
 
 export default function IssuerOnboarding() {
   const { publicKey, connect, apiFetch } = useAuth();
+  const toast = useToast();
   const [form, setForm] = useState({ name: '', license_number: '', country: '' });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(null);
@@ -47,8 +49,10 @@ export default function IssuerOnboarding() {
       if (!res.ok) throw new Error(data.error || 'Submission failed');
       setSuccess(data.message);
       setForm({ name: '', license_number: '', country: '' });
+      toast('Application submitted successfully!', 'success');
     } catch (err) {
       setError(err.message);
+      toast(`Error: ${err.message}`, 'error');
     } finally {
       setLoading(false);
     }

@@ -15,7 +15,7 @@ import ConsentScreen from '../components/ConsentScreen';
 const styles = {
   page: { maxWidth: 700, width: '100%', margin: '2rem auto', padding: '0 1rem', boxSizing: 'border-box' },
   header: { borderLeft: '4px solid #0ea5e9', paddingLeft: '0.75rem', marginBottom: '1.5rem' },
-  btn: { padding: '0.6rem 1.5rem', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' },
+  btn: { padding: '0.7rem 1.5rem', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', minHeight: '44px', minWidth: '44px' },
 };
 
 export default function PatientDashboard() {
