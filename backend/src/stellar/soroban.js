@@ -280,6 +280,34 @@ async function simulateContract(method, args) {
 }
 
 /**
+ * Check if a patient already has a vaccination record with the same vaccine and date.
+ * Returns the token_id if found, null otherwise.
+ * @param {string} wallet - Patient wallet address
+ * @param {string} vaccineName - Vaccine name to check
+ * @param {string} dateAdministered - Date to check
+ */
+async function checkDuplicateRecord(wallet, vaccineName, dateAdministered) {
+  try {
+    const result = await verifyVaccination(wallet);
+    if (!result.vaccinated || !result.records || result.records.length === 0) {
+      return null;
+    }
+
+    // Find matching record by vaccine name and date
+    const duplicate = result.records.find(
+      (record) =>
+        record.vaccine_name === vaccineName &&
+        record.date_administered === dateAdministered
+    );
+
+    return duplicate ? duplicate.token_id : null;
+  } catch (error) {
+    // If verification fails, let the contract handle it
+    return null;
+  }
+}
+
+/**
  * Send a 503 RPC timeout response. Use in route catch blocks when err is SorobanTimeoutError.
  */
 function sendRpcTimeout(res) {
@@ -292,6 +320,7 @@ module.exports = {
   simulateContract,
   mintVaccination,
   verifyVaccination,
+  checkDuplicateRecord,
   addIssuer,
   revokeIssuer,
   sendRpcTimeout,
