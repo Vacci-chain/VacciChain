@@ -4,18 +4,26 @@ import { useAuth } from '../hooks/useFreighter';
 const s = {
   page:    { maxWidth: 700, width: '100%', margin: '2rem auto', padding: '0 1rem', boxSizing: 'border-box' },
   table:   { width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' },
-  th:      { textAlign: 'left', padding: '0.5rem 0.75rem', borderBottom: '1px solid #334155', color: '#94a3b8' },
-  td:      { padding: '0.5rem 0.75rem', borderBottom: '1px solid #1e293b', color: '#e2e8f0', wordBreak: 'break-all' },
-  btn:     { padding: '0.45rem 1rem', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '0.9rem' },
-  btnDanger: { padding: '0.45rem 0.75rem', background: '#ef4444', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '0.85rem' },
-  btnSuccess: { padding: '0.45rem 0.75rem', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '0.85rem', marginRight: '0.4rem' },
-  input:   { padding: '0.5rem 0.75rem', background: '#1e293b', border: '1px solid #334155', borderRadius: 6, color: '#e2e8f0', fontSize: '0.9rem', flex: 1 },
+  th:      { textAlign: 'left', padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)' },
+  td:      { padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--border)', color: 'var(--text)', wordBreak: 'break-all' },
+  btn:     { padding: '0.45rem 1rem', background: 'var(--btn-primary)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '0.9rem' },
+  btnDanger:  { padding: '0.45rem 0.75rem', background: 'var(--color-error)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '0.85rem' },
+  btnSuccess: { padding: '0.45rem 0.75rem', background: 'var(--color-success)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '0.85rem', marginRight: '0.4rem' },
+  input:   { padding: '0.5rem 0.75rem', background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: '0.9rem', flex: 1 },
   row:     { display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', alignItems: 'center' },
-  keyBox:  { marginTop: '1rem', padding: '0.75rem 1rem', background: '#0f172a', borderRadius: 8, color: '#4ade80', fontSize: '0.85rem', wordBreak: 'break-all' },
-  badge:   (revoked) => ({ display: 'inline-block', padding: '0.15rem 0.5rem', borderRadius: 4, fontSize: '0.75rem', background: revoked ? '#7f1d1d' : '#14532d', color: revoked ? '#fca5a5' : '#86efac' }),
+  keyBox:  { marginTop: '1rem', padding: '0.75rem 1rem', background: 'var(--color-success-bg)', border: '1px solid var(--color-success-border)', borderRadius: 8, color: 'var(--color-success)', fontSize: '0.85rem', wordBreak: 'break-all' },
+  badge:   (revoked) => ({
+    display: 'inline-block', padding: '0.15rem 0.5rem', borderRadius: 4, fontSize: '0.75rem',
+    background: revoked ? 'var(--badge-revoked-bg)' : 'var(--badge-active-bg)',
+    color: revoked ? 'var(--badge-revoked-text)' : 'var(--badge-active-text)',
+  }),
   statusBadge: (status) => {
-    const map = { pending: ['#78350f', '#fde68a'], approved: ['#14532d', '#86efac'], rejected: ['#7f1d1d', '#fca5a5'] };
-    const [bg, color] = map[status] || ['#1e293b', '#94a3b8'];
+    const map = {
+      pending:  ['var(--badge-pending-bg)',  'var(--badge-pending-text)'],
+      approved: ['var(--badge-approved-bg)', 'var(--badge-approved-text)'],
+      rejected: ['var(--badge-rejected-bg)', 'var(--badge-rejected-text)'],
+    };
+    const [bg, color] = map[status] || ['var(--surface-2)', 'var(--text-muted)'];
     return { display: 'inline-block', padding: '0.15rem 0.5rem', borderRadius: 4, fontSize: '0.75rem', background: bg, color };
   },
   section: { marginTop: '2.5rem' },
@@ -52,14 +60,14 @@ export default function AdminDashboard() {
   if (!publicKey) {
     return (
       <div style={s.page}>
-        <p style={{ color: '#94a3b8', marginBottom: '1rem' }}>Connect your admin wallet to manage API keys.</p>
+        <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>Connect your admin wallet to manage API keys.</p>
         <button style={s.btn} onClick={connect}>Connect Wallet</button>
       </div>
     );
   }
 
   if (role !== 'issuer') {
-    return <div style={s.page}><p style={{ color: '#f87171' }}>Access denied: admin role required.</p></div>;
+    return <div style={s.page}><p style={{ color: 'var(--color-error)' }}>Access denied: admin role required.</p></div>;
   }
 
   const handleCreate = async (e) => {
@@ -127,7 +135,7 @@ export default function AdminDashboard() {
         </button>
       </form>
 
-      {error && <p style={{ color: '#f87171', marginBottom: '1rem' }}>{error}</p>}
+      {error && <p style={{ color: 'var(--color-error)', marginBottom: '1rem' }}>{error}</p>}
 
       {newKey && (
         <div style={s.keyBox} role="alert">
@@ -138,7 +146,7 @@ export default function AdminDashboard() {
       )}
 
       {keys.length === 0 ? (
-        <p style={{ color: '#64748b' }}>No API keys yet.</p>
+        <p style={{ color: 'var(--text-muted)' }}>No API keys yet.</p>
       ) : (
         <table style={s.table} aria-label="API keys">
           <thead>
@@ -168,12 +176,11 @@ export default function AdminDashboard() {
         </table>
       )}
 
-      {/* ── Issuer Onboarding Applications ── */}
       <div style={s.section}>
         <h3 style={s.h3}>Issuer Onboarding Applications</h3>
-        {reviewError && <p style={{ color: '#f87171', marginBottom: '0.75rem' }}>{reviewError}</p>}
+        {reviewError && <p style={{ color: 'var(--color-error)', marginBottom: '0.75rem' }}>{reviewError}</p>}
         {applications.length === 0 ? (
-          <p style={{ color: '#64748b' }}>No applications yet.</p>
+          <p style={{ color: 'var(--text-muted)' }}>No applications yet.</p>
         ) : (
           <table style={s.table} aria-label="Issuer applications">
             <thead>

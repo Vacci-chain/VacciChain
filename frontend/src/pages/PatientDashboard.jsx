@@ -15,14 +15,13 @@ const PAGE_LIMIT = 10;
 
 const styles = {
   page: { maxWidth: 700, width: '100%', margin: '2rem auto', padding: '0 1rem', boxSizing: 'border-box' },
-  header: { borderLeft: '4px solid #0ea5e9', paddingLeft: '0.75rem', marginBottom: '1.5rem' },
-  btn: { padding: '0.6rem 1.5rem', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' },
+  header: { borderLeft: '4px solid var(--accent)', paddingLeft: '0.75rem', marginBottom: '1.5rem' },
+  btn: { padding: '0.6rem 1.5rem', background: 'var(--btn-primary)', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' },
   controls: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem', marginTop: '1.25rem' },
   pageBtn: {
-    padding: '0.4rem 0.9rem', background: '#1e293b', color: '#e2e8f0',
-    border: '1px solid #334155', borderRadius: 6, cursor: 'pointer',
+    padding: '0.4rem 0.9rem', background: 'var(--surface)', color: 'var(--text)',
+    border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer',
   },
-  pageBtnDisabled: { opacity: 0.35, cursor: 'default' },
 };
 
 export default function PatientDashboard() {
@@ -56,22 +55,17 @@ export default function PatientDashboard() {
 
   useEffect(() => { load(page); }, [load]);
 
-  const handleDeclineConsent = () => {
-    setError('You must provide consent to view vaccination records.');
-  };
-
   const handleDeclineConsent = () => disconnect();
 
   if (!publicKey) {
     return (
       <div style={styles.page}>
-        <p style={{ color: '#94a3b8', marginBottom: '1rem' }}>Connect your wallet to view records.</p>
+        <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>Connect your wallet to view records.</p>
         <button style={styles.btn} onClick={connect} aria-label="Connect Freighter wallet to view vaccination records">Connect Wallet</button>
       </div>
     );
   }
 
-  // Show consent screen for first-time patients (consented === false means checked and not yet consented)
   if (consented === false) {
     return (
       <div style={styles.page}>
@@ -88,16 +82,16 @@ export default function PatientDashboard() {
     <div style={styles.page}>
       <div style={styles.header}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
-          <h2 style={{ color: '#e2e8f0', margin: 0 }}>{t('patient.title')}</h2>
+          <h2 style={{ color: 'var(--text)', margin: 0 }}>{t('patient.title')}</h2>
           <RoleBadge role="patient" />
         </div>
         {total > 0 && (
-          <span style={{ color: '#64748b', fontSize: '0.85rem' }}>
+          <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
             Showing {records.length} of {total}
           </span>
         )}
       </div>
-      <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '1.5rem', wordBreak: 'break-all' }}>
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem', wordBreak: 'break-all' }}>
         Wallet: {publicKey}
         <CopyButton text={publicKey} label="wallet address" />
       </p>
@@ -105,12 +99,12 @@ export default function PatientDashboard() {
       {loading && <NFTCardSkeleton count={3} />}
       {!loading && error && (
         <div style={{ textAlign: 'center', padding: '2rem 0' }}>
-          <p style={{ color: '#f87171', marginBottom: '0.75rem' }}>⚠️ {error}</p>
+          <p style={{ color: 'var(--color-error)', marginBottom: '0.75rem' }}>⚠️ {error}</p>
           <button style={styles.btn} onClick={() => load(page)}>Retry</button>
         </div>
       )}
       {!loading && !error && total === 0 && (
-        <div style={{ textAlign: 'center', padding: '3rem 0', color: '#475569' }}>
+        <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--text-muted)' }}>
           <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>💉</p>
           <p>No vaccination records found for this wallet.</p>
         </div>
