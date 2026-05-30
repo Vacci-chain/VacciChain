@@ -12,6 +12,7 @@ const router = express.Router();
 
 const verifyCache = new Map();
 const CACHE_TTL = 60 * 1000; // 60 seconds
+const MAX_CACHE_SIZE = 1000; // maximum entries to bound memory
 
 /**
  * Try JWT first; if no Authorization header, fall through to API key auth.
@@ -108,6 +109,11 @@ router.get(
         records,
         timestamp: now
       });
+      // Evict oldest entry if cache exceeds max size
+      if (verifyCache.size > MAX_CACHE_SIZE) {
+        const oldestKey = verifyCache.keys().next().value;
+        verifyCache.delete(oldestKey);
+      }
 
       audit({
         actor: ip,
@@ -217,6 +223,11 @@ router.get(
         records,
         timestamp: now
       });
+      // Evict oldest entry if cache exceeds max size
+      if (verifyCache.size > MAX_CACHE_SIZE) {
+        const oldestKey = verifyCache.keys().next().value;
+        verifyCache.delete(oldestKey);
+      }
 
       audit({
         actor,
