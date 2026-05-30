@@ -2,7 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const StellarSdk = require('@stellar/stellar-sdk');
 const { buildChallenge, verifyChallenge } = require('../stellar/sep10');
-const { sep10Limiter } = require('../middleware/rateLimiter');
+const { sep10Limiter, sep10VerifyLimiter } = require('../middleware/rateLimiter');
 const { audit } = require('../middleware/auditLog');
 const validate = require('../middleware/validate');
 const { bruteForceGuard, recordFailure, recordSuccess } = require('../middleware/bruteForce');
@@ -111,8 +111,10 @@ router.post('/sep10', sep10Limiter, validate(sep10Schema), async (req, res) => {
  *         description: Missing or malformed parameters
  *       401:
  *         description: Invalid signature or nonce mismatch
+ *       429:
+ *         description: Rate limit exceeded (max 10 requests per IP per minute)
  */
-router.post('/verify', validate(verifySchema), bruteForceGuard, (req, res) => {
+router.post('/verify', sep10VerifyLimiter, validate(verifySchema), bruteForceGuard, (req, res) => {
   const { transaction, nonce } = req.body;
   const ip = req.ip || req.socket?.remoteAddress || 'unknown';
 
