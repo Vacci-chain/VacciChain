@@ -276,6 +276,7 @@ When an anomaly is detected the service POSTs a JSON payload to `ALERT_WEBHOOK_U
 | `ISSUER_SECRET_KEY` | yes | runtime | valid Stellar secret key format |
 | `JWT_SECRET` | yes | Zod (backend) | non-empty string |
 | `PORT` | no | Zod (backend) | positive integer, default 4000 |
+| `LOG_LEVEL` | no | runtime | Winston log level for the backend: `error` \| `warn` \| `info` \| `http` \| `debug`, default `info` |
 | `ALLOWED_ORIGINS` | no | Zod (backend) | comma-separated URLs, default `http://localhost:3000` |
 | `SOROBAN_FEE` | no | Zod (backend) | positive integer (stroops), default 100 |
 | `SOROBAN_TIP` | no | Zod (backend) | non-negative integer (stroops), default 0 |
@@ -287,7 +288,7 @@ When an anomaly is detected the service POSTs a JSON payload to `ALERT_WEBHOOK_U
 | `AUDIT_LOG_PATH` | no | runtime | writable path, default `./audit.log` |
 | `ANALYTICS_PORT` | no | runtime | positive integer, default 8001 |
 | `BACKEND_URL` | no | runtime | valid URL, default set by Compose |
-| `LOG_LEVEL` | no | runtime | Python logging level, default `INFO` |
+| `LOG_LEVEL` | no | runtime | Python logging level, default `INFO` (reuses the same variable; Python uses `DEBUG`/`INFO`/`WARNING`/`ERROR`/`CRITICAL`) |
 | `ANOMALY_THRESHOLD` | no | runtime | positive integer, default 50 |
 | `ANOMALY_SCHEDULE_MINUTES` | no | runtime | positive integer, default 15 |
 | `ALERT_WEBHOOK_URL` | no | runtime | valid HTTPS URL; alerts disabled if unset |
