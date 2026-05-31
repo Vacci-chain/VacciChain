@@ -286,26 +286,12 @@ router.post(
 router.get('/:wallet', authMiddleware, validateStellarPublicKey('params', 'wallet'), async (req, res) => {
   const { wallet } = req.params;
 
-  const rawPage = req.query.page !== undefined ? Number(req.query.page) : 1;
-  const rawLimit = req.query.limit !== undefined ? Number(req.query.limit) : 20;
-
-  if (!Number.isInteger(rawPage) || rawPage < 1) {
-    return res.status(400).json({ error: 'page must be a positive integer' });
-  }
-  if (!Number.isInteger(rawLimit) || rawLimit < 1 || rawLimit > 100) {
-    return res.status(400).json({ error: 'limit must be an integer between 1 and 100' });
-  }
-
   try {
     const args = [StellarSdk.Address.fromString(wallet).toScVal()];
     const result = await simulateContract('verify_vaccination', args);
-    const [vaccinated, allRecords] = StellarSdk.scValToNative(result);
-
-    const total = allRecords.length;
-    const start = (rawPage - 1) * rawLimit;
-    const data = allRecords.slice(start, start + rawLimit);
-
-    res.json({ data, total, page: rawPage, limit: rawLimit });
+    const [, allRecords] = StellarSdk.scValToNative(result);
+    const records = Array.isArray(allRecords) ? allRecords : [];
+    res.json({ wallet, records });
   } catch (err) {
     if (err instanceof SorobanTimeoutError) return sendRpcTimeout(res);
     const errorMessage = resolveContractErrorMessage(err);
