@@ -18,6 +18,8 @@ export default function App() {
 
   return (
     <AuthProvider>
+      <DemoBanner />
+      <NavBar dark={dark} onToggleDark={() => setDark((d) => !d)} />
       <SkipToContent />
       <DemoBanner/>
       <NavBar dark={dark} onToggleDark={() => setDark(d => !d)} />

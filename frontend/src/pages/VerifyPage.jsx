@@ -77,13 +77,13 @@ export default function VerifyPage() {
       </form>
 
       <div aria-live="polite" aria-atomic="true">
-        {error && <p style={{ color: '#f87171', marginTop: '1rem' }} role="alert">Error: {error}</p>}
+        {error && <p style={{ color: 'var(--color-error)', marginTop: '1rem' }} role="alert">Error: {error}</p>}
       </div>
 
       {result && (
         <div style={{ marginTop: '1.5rem' }} aria-live="polite">
           <VerificationBadge vaccinated={result.vaccinated} recordCount={result.record_count} />
-          <p style={{ color: '#64748b', fontSize: '0.85rem', marginTop: '1rem', wordBreak: 'break-all', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.25rem' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '1rem', wordBreak: 'break-all', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.25rem' }}>
             Wallet: {wallet}
             <CopyButton text={wallet} label="wallet address" />
           </p>

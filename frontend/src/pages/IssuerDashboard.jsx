@@ -77,20 +77,20 @@ export default function IssuerDashboard() {
   if (!publicKey) {
     return (
       <div style={styles.page}>
-        <p style={{ color: '#94a3b8', marginBottom: '1rem' }}>Connect your issuer wallet.</p>
+        <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>Connect your issuer wallet.</p>
         <button style={styles.btn} onClick={connect} aria-label="Connect issuer wallet">Connect Wallet</button>
       </div>
     );
   }
 
   if (role !== 'issuer') {
-    return <div style={styles.page}><p style={{ color: '#f87171' }}>{t('issuer.accessDenied')}</p></div>;
+    return <div style={styles.page}><p style={{ color: 'var(--color-error)' }}>{t('issuer.accessDenied')}</p></div>;
   }
 
   if (isAuthorized === null) {
     return (
       <div style={styles.page}>
-        <p style={{ color: '#94a3b8' }}>Checking authorization status...</p>
+        <p style={{ color: 'var(--text-muted)' }}>Checking authorization status...</p>
       </div>
     );
   }
@@ -108,17 +108,11 @@ export default function IssuerDashboard() {
     }
   };
 
-  const fields = [
-    { key: 'patient_address', label: t('issuer.patientAddress'), placeholder: 'G...', type: 'text' },
-    { key: 'vaccine_name', label: t('issuer.vaccineName'), placeholder: t('issuer.vaccineNamePlaceholder'), type: 'text' },
-    { key: 'date_administered', label: t('issuer.dateAdministered'), placeholder: '', type: 'date' },
-  ];
-
   return (
     <div style={styles.page}>
-      <div style={{ borderLeft: '4px solid #22c55e', paddingLeft: '0.75rem', marginBottom: '1.5rem' }}>
+      <div style={{ borderLeft: '4px solid var(--color-success)', paddingLeft: '0.75rem', marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem' }}>
-          <h2 style={{ color: '#e2e8f0', margin: 0 }}>Issue Vaccination NFT</h2>
+          <h2 style={{ color: 'var(--text)', margin: 0 }}>Issue Vaccination NFT</h2>
           <RoleBadge role="issuer" />
         </div>
       </div>
@@ -147,9 +141,9 @@ export default function IssuerDashboard() {
       </form>
       <div aria-live="polite" aria-atomic="true">
         {mintResult && (
-          <div style={{ marginTop: '1rem', padding: '0.75rem 1rem', background: '#0f172a', borderRadius: 8, color: '#4ade80' }}>
+          <div style={{ marginTop: '1rem', padding: '0.75rem 1rem', background: 'var(--surface)', border: '1px solid var(--color-success-border)', borderRadius: 8, color: 'var(--color-success)' }}>
             <p>✅ Vaccination NFT minted!</p>
-            <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '0.25rem', display: 'flex', alignItems: 'center' }}>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'flex', alignItems: 'center' }}>
               Token ID: {mintResult.tokenId}
               <CopyButton text={String(mintResult.tokenId)} label="token ID" />
             </p>
@@ -157,7 +151,7 @@ export default function IssuerDashboard() {
               href={`https://stellar.expert/explorer/testnet/tx/${mintResult.transactionHash}`}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ fontSize: '0.85rem', color: '#0ea5e9' }}
+              style={{ fontSize: '0.85rem', color: 'var(--accent)' }}
             >
               View on Stellar Explorer ↗
             </a>

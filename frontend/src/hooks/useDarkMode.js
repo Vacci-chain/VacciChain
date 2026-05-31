@@ -8,7 +8,11 @@ export function useDarkMode() {
   });
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark);
+    if (dark) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
     localStorage.setItem('darkMode', dark);
   }, [dark]);
 

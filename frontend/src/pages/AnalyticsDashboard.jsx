@@ -8,13 +8,15 @@ const REFRESH_INTERVAL = 60_000;
 const s = {
   page: { maxWidth: 900, width: '100%', margin: '2rem auto', padding: '0 1rem', boxSizing: 'border-box' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.5rem' },
-  h2: { color: '#e2e8f0', margin: 0 },
-  refreshInfo: { color: '#64748b', fontSize: '0.8rem' },
-  section: { background: '#0f172a', border: '1px solid #1e293b', borderRadius: 10, padding: '1.25rem', marginBottom: '1.5rem' },
-  sectionTitle: { color: '#94a3b8', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1rem' },
-  error: { color: '#f87171', padding: '0.75rem', background: '#1e293b', borderRadius: 8, marginBottom: '1rem' },
-  loading: { color: '#64748b', textAlign: 'center', padding: '2rem 0' },
+  h2: { color: 'var(--text)', margin: 0 },
+  refreshInfo: { color: 'var(--text-muted)', fontSize: '0.8rem' },
+  section: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '1.25rem', marginBottom: '1.5rem' },
+  sectionTitle: { color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1rem' },
+  error: { color: 'var(--color-error)', padding: '0.75rem', background: 'var(--color-error-bg)', border: '1px solid var(--color-error-border)', borderRadius: 8, marginBottom: '1rem' },
+  loading: { color: 'var(--text-muted)', textAlign: 'center', padding: '2rem 0' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' },
+  th: { textAlign: 'left', color: 'var(--text-muted)', fontWeight: 500, padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--border)' },
+  td: { padding: '0.6rem 0.75rem', color: 'var(--text)', borderBottom: '1px solid var(--border)' },
   th: { textAlign: 'left', color: '#64748b', fontWeight: 500, padding: '0.75rem', borderBottom: '1px solid #1e293b' },
   td: { padding: '0.75rem', color: '#e2e8f0', borderBottom: '1px solid #1e293b' },
   badge: (severity) => ({
@@ -23,16 +25,16 @@ const s = {
     borderRadius: 4,
     fontSize: '0.75rem',
     fontWeight: 600,
-    background: severity === 'high' ? '#7f1d1d' : severity === 'medium' ? '#78350f' : '#1e3a5f',
-    color: severity === 'high' ? '#fca5a5' : severity === 'medium' ? '#fcd34d' : '#93c5fd',
+    background: severity === 'high' ? 'var(--badge-high-bg)' : severity === 'medium' ? 'var(--badge-medium-bg)' : 'var(--badge-low-bg)',
+    color: severity === 'high' ? 'var(--badge-high-text)' : severity === 'medium' ? 'var(--badge-medium-text)' : 'var(--badge-low-text)',
   }),
   barWrap: { display: 'flex', flexDirection: 'column', gap: '0.6rem' },
   barRow: { display: 'flex', alignItems: 'center', gap: '0.75rem' },
-  barLabel: { color: '#94a3b8', fontSize: '0.85rem', minWidth: 140, textAlign: 'right', flexShrink: 0 },
-  barTrack: { flex: 1, background: '#1e293b', borderRadius: 4, height: 18, overflow: 'hidden' },
-  barFill: (pct) => ({ width: `${pct}%`, height: '100%', background: '#0ea5e9', borderRadius: 4, transition: 'width 0.4s ease' }),
-  barCount: { color: '#e2e8f0', fontSize: '0.85rem', minWidth: 40 },
-  noData: { color: '#475569', textAlign: 'center', padding: '1.5rem 0' },
+  barLabel: { color: 'var(--chart-label)', fontSize: '0.85rem', minWidth: 140, textAlign: 'right', flexShrink: 0 },
+  barTrack: { flex: 1, background: 'var(--chart-track)', borderRadius: 4, height: 18, overflow: 'hidden' },
+  barFill: (pct) => ({ width: `${pct}%`, height: '100%', background: 'var(--chart-bar)', borderRadius: 4, transition: 'width 0.4s ease' }),
+  barCount: { color: 'var(--text)', fontSize: '0.85rem', minWidth: 40 },
+  noData: { color: 'var(--text-muted)', textAlign: 'center', padding: '1.5rem 0' },
 };
 
 function BarChart({ data }) {
@@ -84,7 +86,7 @@ function IssuerTable({ data }) {
 }
 
 function AnomalyList({ data }) {
-  if (!data || data.length === 0) return <p style={{ ...s.noData, color: '#4ade80' }}>✅ No anomalies detected.</p>;
+  if (!data || data.length === 0) return <p style={{ ...s.noData, color: 'var(--color-success)' }}>✅ No anomalies detected.</p>;
   return (
     <table style={s.table} aria-label="Anomaly flags">
       <thead>
@@ -155,7 +157,7 @@ export default function AnalyticsDashboard() {
   if (role !== 'issuer') {
     return (
       <div style={s.page}>
-        <p style={{ color: '#f87171' }}>Access restricted to authorized issuers.</p>
+        <p style={{ color: 'var(--color-error)' }}>Access restricted to authorized issuers.</p>
       </div>
     );
   }
@@ -171,19 +173,16 @@ export default function AnalyticsDashboard() {
 
       {error && <p style={s.error} role="alert">⚠️ {error}</p>}
 
-      {/* Vaccination Rates */}
       <section style={s.section} aria-labelledby="rates-title">
         <h3 id="rates-title" style={s.sectionTitle}>Vaccination Rates by Vaccine Type</h3>
         {loading && !rates ? <p style={s.loading}>Loading…</p> : <BarChart data={rates} />}
       </section>
 
-      {/* Issuer Activity */}
       <section style={s.section} aria-labelledby="issuers-title">
         <h3 id="issuers-title" style={s.sectionTitle}>Issuer Activity</h3>
         {loading && !issuers ? <p style={s.loading}>Loading…</p> : <IssuerTable data={issuers} />}
       </section>
 
-      {/* Anomaly Flags */}
       <section style={s.section} aria-labelledby="anomalies-title">
         <h3 id="anomalies-title" style={s.sectionTitle}>Anomaly Flags</h3>
         {loading && !anomalies ? <p style={s.loading}>Loading…</p> : <AnomalyList data={anomalies} />}

@@ -73,14 +73,18 @@
 
   /* Semantic aliases for light mode */
   --bg: #ffffff;
+  --surface: #f8fafc;
+  --surface-2: #f1f5f9;
   --text: #0f172a;
   --text-muted: #64748b;
-  --accent: #0284c7;
-  --btn-primary: #0284c7;
+  --accent: #0369a1;
+  --btn-primary: #0369a1;
   --input-bg: #f1f5f9;
   --border: #cbd5e1;
   --nav-bg: #1e293b;
   --nav-text: #cbd5e1;
+
+  /* Role badges */
   --role-patient-bg: #e0f2fe;
   --role-patient-text: #0284c7;
   --role-patient-border: #7dd3fc;
@@ -158,6 +162,8 @@
 .dark {
   /* Semantic aliases for dark mode */
   --bg: #0f172a;
+  --surface: #1e293b;
+  --surface-2: #0f172a;
   --text: #e2e8f0;
   --text-muted: #94a3b8;
   --accent: #38bdf8;
@@ -166,11 +172,77 @@
   --border: #334155;
   --nav-bg: #1e293b;
   --nav-text: #cbd5e1;
+
+  /* Role badges */
   --role-patient-bg: #0c2a4a;
   --role-patient-text: #38bdf8;
   --role-patient-border: #0ea5e9;
   --role-issuer-bg: #052e16;
   --role-issuer-text: #4ade80;
+  --role-issuer-border: #22c55e;
+
+  /* Semantic */
+  --color-error: #f87171;
+  --color-error-bg: rgba(248, 113, 113, 0.1);
+  --color-error-border: rgba(248, 113, 113, 0.2);
+  --color-success: #4ade80;
+  --color-success-bg: rgba(74, 222, 128, 0.1);
+  --color-success-border: rgba(74, 222, 128, 0.2);
+  --color-warning: #fbbf24;
+  --color-warning-bg: #78350f;
+  --color-warning-text: #fcd34d;
+  --color-info: #60a5fa;
+  --color-info-bg: rgba(96, 165, 250, 0.1);
+  --color-info-border: rgba(96, 165, 250, 0.2);
+  --color-muted: #94a3b8;
+  --color-muted-bg: rgba(148, 163, 184, 0.1);
+  --color-muted-border: rgba(148, 163, 184, 0.2);
+
+  /* Chart / data */
+  --chart-bar: #0ea5e9;
+  --chart-track: #1e293b;
+  --chart-label: #94a3b8;
+
+  /* Badge severity */
+  --badge-high-bg: #7f1d1d;
+  --badge-high-text: #fca5a5;
+  --badge-medium-bg: #78350f;
+  --badge-medium-text: #fcd34d;
+  --badge-low-bg: #1e3a5f;
+  --badge-low-text: #93c5fd;
+
+  /* Status badges */
+  --badge-active-bg: #14532d;
+  --badge-active-text: #86efac;
+  --badge-revoked-bg: #7f1d1d;
+  --badge-revoked-text: #fca5a5;
+  --badge-pending-bg: #78350f;
+  --badge-pending-text: #fde68a;
+  --badge-approved-bg: #14532d;
+  --badge-approved-text: #86efac;
+  --badge-rejected-bg: #7f1d1d;
+  --badge-rejected-text: #fca5a5;
+
+  /* Dose badges */
+  --dose-complete-bg: #166534;
+  --dose-complete-text: #86efac;
+  --dose-partial-bg: #1e3a5f;
+  --dose-partial-text: #93c5fd;
+
+  /* Modals / overlays */
+  --modal-bg: #1e293b;
+  --modal-border: #334155;
+  --overlay-bg: rgba(0, 0, 0, 0.7);
+
+  /* Misc */
+  --freighter-banner-bg: #7c3aed;
+  --freighter-banner-link: #e9d5ff;
+  --copy-btn-color: #64748b;
+  --copy-btn-hover: #38bdf8;
+  --copy-btn-success: #4ade80;
+  --copy-tooltip-bg: #1e293b;
+  --copy-tooltip-border: #334155;
+  --copy-tooltip-text: #4ade80;
   --focus-ring: #38bdf8;
   --focus-ring-offset: #0f172a;
 }

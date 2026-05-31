@@ -25,12 +25,29 @@ export default function PatientDashboard() {
   const { consented, giveConsent, loading: consentLoading } = useConsent();
   const [qrRecord, setQrRecord] = useState(null);
 
+  const load = useCallback((p = 1, append = false) => {
+    if (!publicKey) return;
+    fetchRecords(publicKey, { page: p, limit: PAGE_LIMIT })
+      .then((data) => {
+        setError(null);
+        if (data) {
+          const nextRecords = Array.isArray(data.data) ? data.data : [];
+          setRecords((current) => (append ? [...current, ...nextRecords] : nextRecords));
+          setTotal(data.total ?? 0);
+          setPage(data.page ?? p);
+        }
+      })
+      .catch((err) => setError(err.message || 'Failed to fetch records'));
+  }, [publicKey, fetchRecords]);
+
+  useEffect(() => { load(page); }, [load]);
+
   const handleDeclineConsent = () => disconnect();
 
   if (!publicKey) {
     return (
       <div style={styles.page}>
-        <p style={{ color: '#94a3b8', marginBottom: '1rem' }}>Connect your wallet to view records.</p>
+        <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>Connect your wallet to view records.</p>
         <button style={styles.btn} onClick={connect} aria-label="Connect Freighter wallet to view vaccination records">Connect Wallet</button>
       </div>
     );
@@ -52,16 +69,19 @@ export default function PatientDashboard() {
     <div style={styles.page}>
       <div style={styles.header}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
-          <h2 style={{ color: '#e2e8f0', margin: 0 }}>{t('patient.title')}</h2>
+          <h2 style={{ color: 'var(--text)', margin: 0 }}>{t('patient.title')}</h2>
           <RoleBadge role="patient" />
         </div>
+        {total > 0 && (
+          <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+            Showing {records.length} of {total}
         {records.length > 0 && (
           <span style={{ color: '#64748b', fontSize: '0.85rem' }}>
             {records.length} records
           </span>
         )}
       </div>
-      <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '1.5rem', wordBreak: 'break-all' }}>
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem', wordBreak: 'break-all' }}>
         Wallet: {publicKey}
         <CopyButton text={publicKey} label="wallet address" />
       </p>
@@ -69,6 +89,14 @@ export default function PatientDashboard() {
       {loading && <NFTCardSkeleton count={3} />}
       {!loading && error && (
         <div style={{ textAlign: 'center', padding: '2rem 0' }}>
+          <p style={{ color: 'var(--color-error)', marginBottom: '0.75rem' }}>⚠️ {error}</p>
+          <button style={styles.btn} onClick={() => load(page)}>Retry</button>
+        </div>
+      )}
+      {!loading && !error && total === 0 && (
+        <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--text-muted)' }}>
+          <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>💉</p>
+          <p>No vaccination records found for this wallet.</p>
           <p style={{ color: '#f87171', marginBottom: '0.75rem' }}>⚠️ {error}</p>
           <button style={styles.btn} onClick={refetch}>Retry</button>
         </div>
