@@ -7,8 +7,8 @@ import { useToast } from '../hooks/useToast';
 
 const styles = {
   page: { maxWidth: 600, margin: '2rem auto', padding: '0 1rem' },
-  input: { padding: '0.6rem 0.75rem', background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: '1rem', width: '100%' },
-  btn: { padding: '0.6rem 1.5rem', background: 'var(--btn-primary)', color: '#fff', border: 'none', borderRadius: 8, fontSize: '1rem', marginTop: '0.75rem' },
+  input: { padding: '0.6rem 0.75rem', background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: '1rem', width: '100%', boxSizing: 'border-box', minHeight: '44px' },
+  btn: { padding: '0.7rem 1.5rem', background: 'var(--btn-primary)', color: '#fff', border: 'none', borderRadius: 8, fontSize: '1rem', marginTop: '0.75rem', minHeight: '44px', cursor: 'pointer' },
 };
 
 export default function VerifyPage() {
@@ -28,6 +28,7 @@ export default function VerifyPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setResult(data);
+      toast('Verification successful', 'success');
     } catch (e) {
       setError(e.message || 'Verification failed.');
       toast(e.message || 'Verification failed.', 'error');

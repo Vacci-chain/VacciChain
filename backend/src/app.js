@@ -24,6 +24,7 @@ const { getHealthStatus, startHealthProbe } = require('./health');
 
 const requestId = require('./middleware/requestId');
 const { sanitizeInputs } = require('./middleware/sanitize');
+const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean);
@@ -62,12 +63,6 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use('/auth', authRoutes);
-app.use('/vaccination', vaccinationRoutes);
-app.use('/verify', verifyRoutes);
-app.use('/admin', adminRoutes);
-app.use('/events', eventsRoutes);
-
 // v1 routes — all API endpoints are versioned under /v1/
 const v1 = express.Router();
 v1.use(apiVersion);
@@ -86,6 +81,9 @@ app.use(['/auth', '/vaccination', '/verify', '/admin', '/patient', '/events'], (
   res.setHeader('Deprecation', 'true');
   res.redirect(308, `/v1${req.originalUrl}`);
 });
+
+// Global error handler — must be registered after all routes
+app.use(errorHandler);
 
 
 /**

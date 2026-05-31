@@ -1,4 +1,7 @@
 {
+  "accessibility": {
+    "skipToContent": "Skip to main content"
+  },
   "nav": {
     "home": "Home",
     "myRecords": "My Records",

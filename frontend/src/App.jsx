@@ -11,6 +11,7 @@ import { useDarkMode } from './hooks/useDarkMode';
 import FreighterBanner from './components/FreighterBanner';
 import DemoBanner from './components/DemoBanner';
 import NavBar from './components/NavBar';
+import SkipToContent from './components/SkipToContent';
 
 export default function App() {
   const [dark, setDark] = useDarkMode();
@@ -19,16 +20,21 @@ export default function App() {
     <AuthProvider>
       <DemoBanner />
       <NavBar dark={dark} onToggleDark={() => setDark((d) => !d)} />
+      <SkipToContent />
+      <DemoBanner/>
+      <NavBar dark={dark} onToggleDark={() => setDark(d => !d)} />
       <FreighterBanner />
-      <Routes>
-        <Route path="/" element={<Landing />} />
-        <Route path="/patient" element={<PatientDashboard />} />
-        <Route path="/issuer" element={<IssuerDashboard />} />
-        <Route path="/verify" element={<VerifyPage />} />
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/apply" element={<IssuerOnboarding />} />
-        <Route path="/analytics" element={<AnalyticsDashboard />} />
-      </Routes>
+      <main id="main-content" tabIndex={-1} style={{ outline: 'none' }}>
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="/patient" element={<PatientDashboard />} />
+          <Route path="/issuer" element={<IssuerDashboard />} />
+          <Route path="/verify" element={<VerifyPage />} />
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/apply" element={<IssuerOnboarding />} />
+          <Route path="/analytics" element={<AnalyticsDashboard />} />
+        </Routes>
+      </main>
     </AuthProvider>
   );
 }

@@ -5,16 +5,22 @@ const AUDIT_LOG_PATH = process.env.AUDIT_LOG_PATH || path.join(__dirname, '../..
 
 /**
  * Append a single audit entry to the append-only NDJSON log file.
- * This is the only write path — there is no update or delete.
+ * Uses async write to avoid blocking the request/response cycle.
  */
 function writeAuditEntry(entry) {
   const line = JSON.stringify(entry) + '\n';
-  // appendFileSync keeps writes atomic enough for a single-process server
-  fs.appendFileSync(AUDIT_LOG_PATH, line, 'utf8');
+  // Non-blocking append — fire and forget to avoid blocking request handlers
+  fs.appendFile(AUDIT_LOG_PATH, line, 'utf8', (err) => {
+    if (err) {
+      // Log to stderr but don't crash the server
+      console.error(`[AuditLog] Failed to write entry: ${err.message}`);
+    }
+  });
 }
 
 /**
  * Build and persist an audit log entry.
+ * Non-blocking — does not wait for file write to complete.
  *
  * @param {object} opts
  * @param {string} opts.actor   - Stellar public key of the acting wallet

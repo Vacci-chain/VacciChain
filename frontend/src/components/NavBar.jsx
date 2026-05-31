@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import DarkModeToggle from './DarkModeToggle';
+import Tooltip from './Tooltip';
+import { useAuth } from '../hooks/useFreighter';
 
 const NAV_LINKS = [
   { to: '/', label: 'Home' },
@@ -11,6 +13,143 @@ const NAV_LINKS = [
   { to: '/apply', label: 'Apply as Issuer' },
   { to: '/analytics', label: 'Analytics' },
 ];
+
+function truncate(addr) {
+  return `${addr.slice(0, 4)}...${addr.slice(-4)}`;
+}
+
+function WalletIndicator() {
+  const { publicKey, connect, disconnect } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const ref = useRef(null);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  if (!publicKey) {
+    return (
+      <button
+        onClick={connect}
+        style={{
+          padding: '0.6rem 1rem',
+          background: 'var(--btn-primary)',
+          color: '#fff',
+          border: 'none',
+          borderRadius: 6,
+          fontSize: '0.85rem',
+          cursor: 'pointer',
+          minHeight: '44px',
+          minWidth: '44px',
+        }}
+      >
+        Connect Wallet
+      </button>
+    );
+  }
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(publicKey);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <Tooltip text={`Wallet: ${truncate(publicKey)}`} position="bottom">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-haspopup="true"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            padding: '0.6rem 0.75rem',
+            background: '#1e293b',
+            border: '1px solid #334155',
+            borderRadius: 6,
+            color: '#e2e8f0',
+            fontSize: '0.85rem',
+            cursor: 'pointer',
+            minHeight: '44px',
+            minWidth: '44px',
+          }}
+        >
+          <span
+            aria-hidden="true"
+            style={{ width: 8, height: 8, borderRadius: '50%', background: '#4ade80', display: 'inline-block' }}
+          />
+          {truncate(publicKey)}
+        </button>
+      </Tooltip>
+
+      {open && (
+        <div
+          role="menu"
+          style={{
+            position: 'absolute',
+            right: 0,
+            top: 'calc(100% + 6px)',
+            background: '#1e293b',
+            border: '1px solid #334155',
+            borderRadius: 8,
+            padding: '0.75rem',
+            minWidth: 220,
+            zIndex: 100,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ color: '#94a3b8', fontSize: '0.8rem', wordBreak: 'break-all', flex: 1 }}>
+              {truncate(publicKey)}
+            </span>
+            <button
+              onClick={handleCopy}
+              style={{
+                padding: '0.4rem 0.6rem',
+                fontSize: '0.75rem',
+                background: 'transparent',
+                border: '1px solid #334155',
+                borderRadius: 4,
+                color: '#e2e8f0',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                minHeight: '32px',
+                minWidth: '32px',
+              }}
+            >
+              {copied ? 'Copied!' : 'Copy'}
+            </button>
+          </div>
+          <button
+            onClick={() => { disconnect(); setOpen(false); }}
+            style={{
+              padding: '0.5rem 0.75rem',
+              background: 'transparent',
+              border: '1px solid #f87171',
+              borderRadius: 4,
+              color: '#f87171',
+              fontSize: '0.8rem',
+              cursor: 'pointer',
+              textAlign: 'left',
+              minHeight: '44px',
+            }}
+          >
+            Disconnect
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function NavBar({ dark, onToggleDark }) {
   const { pathname } = useLocation();
@@ -62,7 +201,10 @@ export default function NavBar({ dark, onToggleDark }) {
           color: '#e2e8f0',
           fontSize: '1.5rem',
           lineHeight: 1,
-          padding: '0.25rem',
+          padding: '0.5rem',
+          minHeight: '44px',
+          minWidth: '44px',
+          cursor: 'pointer',
         }}
         className="nav-hamburger"
       >
@@ -87,6 +229,7 @@ export default function NavBar({ dark, onToggleDark }) {
           </Link>
         ))}
         <DarkModeToggle dark={dark} onToggle={onToggleDark} />
+        <WalletIndicator />
       </div>
 
       <style>{`

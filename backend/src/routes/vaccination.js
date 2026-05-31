@@ -3,7 +3,7 @@ const StellarSdk = require('@stellar/stellar-sdk');
 const authMiddleware = require('../middleware/auth');
 const issuerMiddleware = require('../middleware/issuer');
 const { validateStellarPublicKey } = require('../middleware/wallet');
-const { invokeContract, simulateContract, mintVaccination, sendRpcTimeout, SorobanTimeoutError } = require('../stellar/soroban');
+const { invokeContract, simulateContract, mintVaccination, sendRpcTimeout, SorobanTimeoutError, checkDuplicateRecord } = require('../stellar/soroban');
 const { resolveContractErrorMessage, mapContractError } = require('../stellar/contractErrors');
 const { audit } = require('../middleware/auditLog');
 const validate = require('../middleware/validate');
@@ -63,6 +63,8 @@ const router = express.Router();
  *         description: Unauthorized
  *       403:
  *         description: Forbidden - issuer role required
+ *       409:
+ *         description: Duplicate record
  *       500:
  *         description: Contract invocation failed
  *         content:
@@ -83,6 +85,27 @@ router.post(
   // Enforce patient consent unless jurisdiction config waives it
   if (process.env.REQUIRE_PATIENT_CONSENT !== 'false' && !hasConsented(patient_address)) {
     return res.status(403).json({ error: 'Patient has not provided consent. They must consent before a record can be issued.' });
+  }
+
+  // Check for duplicate record before invoking contract
+  try {
+    const existingTokenId = await checkDuplicateRecord(patient_address, vaccine_name, date_administered);
+    if (existingTokenId) {
+      audit({
+        actor: req.user.publicKey,
+        action: 'vaccination.issue',
+        target: patient_address,
+        result: 'failure',
+        meta: { error: 'Duplicate record', existing_token_id: existingTokenId },
+      });
+      return res.status(409).json({
+        error: 'Duplicate record',
+        existing_token_id: existingTokenId,
+      });
+    }
+  } catch (err) {
+    // If duplicate check fails, continue to contract invocation
+    // The contract will also check for duplicates
   }
 
   try {
