@@ -6,6 +6,9 @@ const { queryAuditLog, audit } = require('../middleware/auditLog');
 const { insertApiKey, listApiKeys, revokeApiKey } = require('../indexer/db');
 const { rotateKey, reloadFromEnv } = require('../jwtKeys');
 const { approveProposal, getProposal } = require('../middleware/multiSig');
+const config = require('../config');
+const { invokeContract, simulateContract } = require('../stellar/soroban');
+const { isAuthorizedIssuer, invalidateCache } = require('../stellar/issuerCache');
 
 const router = express.Router();
 
@@ -33,21 +36,43 @@ function isValidStellarAddress(address) {
  * Authorizes a new issuer on-chain via add_issuer contract call.
  */
 router.post('/issuers', authMiddleware, adminOnly, async (req, res) => {
-  const { address } = req.body;
-  if (!address || !isValidStellarAddress(address)) {
+  const wallet_address = req.body.wallet_address || req.body.address;
+  if (!wallet_address || !isValidStellarAddress(wallet_address)) {
     return res.status(400).json({ error: 'Valid Stellar address required' });
   }
 
   try {
+    const isDuplicate = await isAuthorizedIssuer(wallet_address);
+    if (isDuplicate) {
+      return res.status(409).json({ error: 'Issuer already authorized' });
+    }
+
+    const { name = '', license = '', country = '' } = req.body;
+
+    const args = [
+      StellarSdk.xdr.ScVal.scvAddress(StellarSdk.Address.fromString(wallet_address).toScAddress()),
+      StellarSdk.xdr.ScVal.scvString(name),
+      StellarSdk.xdr.ScVal.scvString(license),
+      StellarSdk.xdr.ScVal.scvString(country)
+    ];
+
     const result = await invokeContract(
       config.ADMIN_SECRET_KEY,
       'add_issuer',
-      [StellarSdk.xdr.ScVal.scvAddress(StellarSdk.Address.fromString(address).toScAddress())]
+      args
     );
-    audit({ actor: req.user.wallet, action: 'admin.add_issuer', result: 'success', meta: { address } });
-    res.status(201).json({ address, authorized: true, hash: result.hash });
+
+    invalidateCache(wallet_address);
+
+    audit({ actor: req.user.wallet, action: 'admin.add_issuer', result: 'success', meta: { address: wallet_address } });
+    res.status(201).json({
+      address: wallet_address,
+      wallet_address,
+      authorized: true,
+      hash: result.hash
+    });
   } catch (err) {
-    audit({ actor: req.user.wallet, action: 'admin.add_issuer', result: 'failure', meta: { address, error: err.message } });
+    audit({ actor: req.user.wallet, action: 'admin.add_issuer', result: 'failure', meta: { address: wallet_address, error: err.message } });
     res.status(500).json({ error: err.message });
   }
 });
@@ -68,6 +93,7 @@ router.delete('/issuers/:address', authMiddleware, adminOnly, async (req, res) =
       'revoke_issuer',
       [StellarSdk.xdr.ScVal.scvAddress(StellarSdk.Address.fromString(address).toScAddress())]
     );
+    invalidateCache(address);
     audit({ actor: req.user.wallet, action: 'admin.revoke_issuer', result: 'success', meta: { address } });
     res.json({ address, authorized: false, hash: result.hash });
   } catch (err) {
