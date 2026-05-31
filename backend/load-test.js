@@ -1,102 +1,95 @@
+/**
+ * k6 performance test for GET /v1/verify/public/:wallet
+ *
+ * Scenarios:
+ *   cached   — 100 VUs hit the same wallet repeatedly (cache hit after first request)
+ *   uncached — 100 VUs each hit a unique wallet (cache miss every time)
+ *
+ * Acceptance criteria (issue #350):
+ *   cached   p95 < 500 ms
+ *   uncached p95 < 2000 ms
+ *   error rate < 1 %
+ */
 import http from 'k6/http';
-import { check, group, sleep } from 'k6';
-import { Rate, Trend, Counter, Gauge } from 'k6/metrics';
+import { check, sleep } from 'k6';
+import { Rate } from 'k6/metrics';
+import { textSummary } from 'https://jslib.k6.io/k6-summary/0.0.2/index.js';
 
-// Custom metrics
 const errorRate = new Rate('errors');
-const responseTime = new Trend('response_time');
-const successCount = new Counter('success_count');
-const p95ResponseTime = new Trend('p95_response_time');
 
-// Configuration
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:4000';
-const DURATION = __ENV.DURATION || '60s';
-const VUS = __ENV.VUS || 100;
-const RAMP_UP = __ENV.RAMP_UP || '10s';
 
-// Test wallets (valid Stellar addresses for testing)
-const TEST_WALLETS = [
-  'GBRPYHIL2CI3WHZDTOOQFC6EB4RBMPUTKXWDAUUJQHTITE4K3B6Rrytm',
-  'GBBD47UZQ5UARKHTX4V2HA2KYRMF2ZSXBK6D5I4VRVHBT5RMJJWUBTQ',
-  'GCZST3XVCDTUJ76ZAV2HA2KYRMF2ZSXBK6D5I4VRVHBT5RMJJWUBTQ',
-  'GDZST3XVCDTUJ76ZAV2HA2KYRMF2ZSXBK6D5I4VRVHBT5RMJJWUBTQ',
-  'GEZST3XVCDTUJ76ZAV2HA2KYRMF2ZSXBK6D5I4VRVHBT5RMJJWUBTQ',
-];
+// One fixed wallet for the cached scenario (all VUs share it → cache warms up fast)
+const CACHED_WALLET = 'GBRPYHIL2CI3WHZDTOOQFC6EB4RBMPUTKXWDAUUJQHTITE4K3B6RYTTM';
 
 export const options = {
-  stages: [
-    { duration: RAMP_UP, target: VUS },
-    { duration: DURATION, target: VUS },
-    { duration: '10s', target: 0 },
-  ],
+  scenarios: {
+    cached: {
+      executor: 'constant-vus',
+      vus: 100,
+      duration: '30s',
+      env: { SCENARIO: 'cached' },
+      tags: { scenario: 'cached' },
+    },
+    uncached: {
+      executor: 'constant-vus',
+      vus: 100,
+      duration: '30s',
+      startTime: '35s', // run after cached scenario finishes
+      env: { SCENARIO: 'uncached' },
+      tags: { scenario: 'uncached' },
+    },
+  },
   thresholds: {
-    'http_req_duration': ['p(95)<500', 'p(99)<1000'],
-    'errors': ['rate<0.01'],
+    // cached scenario: p95 < 500 ms
+    'http_req_duration{scenario:cached}': ['p(95)<500'],
+    // uncached scenario: p95 < 2000 ms
+    'http_req_duration{scenario:uncached}': ['p(95)<2000'],
+    // overall error rate < 1 %
+    errors: ['rate<0.01'],
   },
 };
 
 export default function () {
-  group('Verify Vaccination Endpoint', () => {
-    const wallet = TEST_WALLETS[Math.floor(Math.random() * TEST_WALLETS.length)];
-    const url = `${BASE_URL}/verify/${wallet}`;
+  const scenario = __ENV.SCENARIO;
 
-    const params = {
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${__ENV.JWT_TOKEN || 'test-token'}`,
-      },
-      timeout: '10s',
-    };
+  // For uncached, each VU uses a unique wallet derived from its ID + iteration
+  // so the cache never has a warm entry for it.
+  const wallet =
+    scenario === 'uncached'
+      ? uniqueWallet(__VU, __ITER)
+      : CACHED_WALLET;
 
-    const response = http.get(url, params);
-
-    // Record response time
-    responseTime.add(response.timings.duration);
-    p95ResponseTime.add(response.timings.duration);
-
-    // Check response
-    const success = check(response, {
-      'status is 200 or 401': (r) => r.status === 200 || r.status === 401,
-      'response time < 500ms': (r) => r.timings.duration < 500,
-      'response has wallet field': (r) => r.body.includes('wallet'),
-    });
-
-    if (success) {
-      successCount.add(1);
-    } else {
-      errorRate.add(1);
-    }
-
-    // Small delay between requests
-    sleep(0.1);
+  const res = http.get(`${BASE_URL}/v1/verify/public/${wallet}`, {
+    timeout: '10s',
+    tags: { scenario },
   });
+
+  const ok = check(res, {
+    'status 200': (r) => r.status === 200,
+    'has wallet field': (r) => r.body && r.body.includes('"wallet"'),
+  });
+
+  errorRate.add(!ok);
+  sleep(0.1);
+}
+
+/**
+ * Generate a syntactically valid-looking Stellar public key that is unique per
+ * VU+iteration so the server cache never has a warm entry for it.
+ * The key doesn't need to exist on-chain — the endpoint returns verified:false
+ * for unknown wallets, which is still a 200 and exercises the full code path.
+ */
+function uniqueWallet(vu, iter) {
+  const base = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
+  const suffix = String(vu * 10000 + iter).padStart(6, '0');
+  // Replace the last characters to keep total length at 56
+  return base.slice(0, 50) + suffix;
 }
 
 export function handleSummary(data) {
   return {
-    'stdout': textSummary(data, { indent: ' ', enableColors: true }),
-    'summary.json': JSON.stringify(data),
+    stdout: textSummary(data, { indent: ' ', enableColors: true }),
+    'load-test-summary.json': JSON.stringify(data, null, 2),
   };
-}
-
-function textSummary(data, options) {
-  const indent = options.indent || '';
-  const colors = options.enableColors || false;
-
-  let summary = '\n=== Load Test Summary ===\n';
-  summary += `Total Requests: ${data.metrics.http_reqs?.value || 0}\n`;
-  summary += `Errors: ${data.metrics.errors?.value || 0}\n`;
-  summary += `Success Rate: ${((1 - (data.metrics.errors?.value || 0) / (data.metrics.http_reqs?.value || 1)) * 100).toFixed(2)}%\n`;
-
-  if (data.metrics.http_req_duration) {
-    const duration = data.metrics.http_req_duration;
-    summary += `\nResponse Times:\n`;
-    summary += `  Min: ${duration.stats?.min?.toFixed(2) || 'N/A'}ms\n`;
-    summary += `  Max: ${duration.stats?.max?.toFixed(2) || 'N/A'}ms\n`;
-    summary += `  Avg: ${duration.stats?.avg?.toFixed(2) || 'N/A'}ms\n`;
-    summary += `  P95: ${duration.stats?.p(95)?.toFixed(2) || 'N/A'}ms\n`;
-    summary += `  P99: ${duration.stats?.p(99)?.toFixed(2) || 'N/A'}ms\n`;
-  }
-
-  return summary;
 }
