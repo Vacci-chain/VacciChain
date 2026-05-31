@@ -125,6 +125,11 @@ router.post(
       result: 'success',
       meta: { token_id: result.tokenId, vaccine_name, date_administered, dose_number, dose_series },
     });
+    // Invalidate verification cache for this wallet
+    const verifyRouter = require('../routes/verify');
+    if (verifyRouter.verifyCache) {
+      verifyRouter.verifyCache.delete(patient_address);
+    }
 
     res.json({
       success: true,
