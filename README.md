@@ -330,6 +330,7 @@ Copy `.env.example` to `.env` and fill in the required values. The backend valid
 | `ISSUER_SECRET_KEY` | yes | — | Signs mint/revoke transactions (starts with `S`) |
 | `JWT_SECRET` | yes | — | Signs JWTs; rotate to invalidate all sessions |
 | `PORT` | no | `4000` | Backend listen port |
+| `LOG_LEVEL` | no | `info` | Winston log level: `error`, `warn`, `info`, `http`, `debug` |
 | `RATE_LIMIT_SEP10` | no | `10` | Max SEP-10 requests per IP per minute |
 | `RATE_LIMIT_VERIFY` | no | `60` | Max verify requests per IP per minute |
 | `AUDIT_LOG_PATH` | no | `./audit.log` | Path to append-only NDJSON audit log |
