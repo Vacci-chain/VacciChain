@@ -2,15 +2,18 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useFreighter';
 import { useVaccination } from '../hooks/useVaccination';
+import { useToast } from '../hooks/useToast';
 import ConfirmMintDialog from '../components/ConfirmMintDialog';
+import CopyButton from '../components/CopyButton';
+import RoleBadge from '../components/RoleBadge';
 
 const styles = {
   page: { maxWidth: 500, width: '100%', margin: '2rem auto', padding: '0 1rem', boxSizing: 'border-box' },
   form: { display: 'flex', flexDirection: 'column', gap: '1rem' },
-  input: { padding: '0.6rem 0.75rem', background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#e2e8f0', fontSize: '1rem', width: '100%', boxSizing: 'border-box' },
-  inputError: { padding: '0.6rem 0.75rem', background: '#1e293b', border: '1px solid #f87171', borderRadius: 8, color: '#e2e8f0', fontSize: '1rem', width: '100%', boxSizing: 'border-box' },
-  btn: { padding: '0.7rem', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: 8, fontSize: '1rem', width: '100%', touchAction: 'manipulation' },
-  btnDisabled: { padding: '0.7rem', background: '#334155', color: '#64748b', border: 'none', borderRadius: 8, fontSize: '1rem', cursor: 'not-allowed', width: '100%' },
+  input: { padding: '0.6rem 0.75rem', background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#e2e8f0', fontSize: '1rem', width: '100%', boxSizing: 'border-box', minHeight: '44px' },
+  inputError: { padding: '0.6rem 0.75rem', background: '#1e293b', border: '1px solid #f87171', borderRadius: 8, color: '#e2e8f0', fontSize: '1rem', width: '100%', boxSizing: 'border-box', minHeight: '44px' },
+  btn: { padding: '0.7rem', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: 8, fontSize: '1rem', width: '100%', touchAction: 'manipulation', minHeight: '44px', cursor: 'pointer' },
+  btnDisabled: { padding: '0.7rem', background: '#334155', color: '#64748b', border: 'none', borderRadius: 8, fontSize: '1rem', cursor: 'not-allowed', width: '100%', minHeight: '44px' },
   label: { color: '#94a3b8', fontSize: '0.85rem', marginBottom: '0.25rem' },
   fieldError: { color: '#f87171', fontSize: '0.78rem', marginTop: '0.25rem' },
   statusBadge: { display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: 6, fontSize: '0.85rem', marginBottom: '1rem' },
@@ -28,6 +31,7 @@ export default function IssuerDashboard() {
   const { t } = useTranslation();
   const { publicKey, role, connect } = useAuth();
   const { issueVaccination, checkIssuerStatus, loading } = useVaccination();
+  const toast = useToast();
 
   const [form, setForm] = useState(() => {
     try {
@@ -73,20 +77,20 @@ export default function IssuerDashboard() {
   if (!publicKey) {
     return (
       <div style={styles.page}>
-        <p style={{ color: '#94a3b8', marginBottom: '1rem' }}>Connect your issuer wallet.</p>
+        <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>Connect your issuer wallet.</p>
         <button style={styles.btn} onClick={connect} aria-label="Connect issuer wallet">Connect Wallet</button>
       </div>
     );
   }
 
   if (role !== 'issuer') {
-    return <div style={styles.page}><p style={{ color: '#f87171' }}>{t('issuer.accessDenied')}</p></div>;
+    return <div style={styles.page}><p style={{ color: 'var(--color-error)' }}>{t('issuer.accessDenied')}</p></div>;
   }
 
   if (isAuthorized === null) {
     return (
       <div style={styles.page}>
-        <p style={{ color: '#94a3b8' }}>Checking authorization status...</p>
+        <p style={{ color: 'var(--text-muted)' }}>Checking authorization status...</p>
       </div>
     );
   }
@@ -98,18 +102,20 @@ export default function IssuerDashboard() {
       setMintResult(result);
       setForm(EMPTY_FORM);
       sessionStorage.removeItem(FORM_KEY);
+      toast('Vaccination NFT issued successfully!', 'success');
+    } else {
+      toast('Failed to issue vaccination NFT. Please try again.', 'error');
     }
   };
 
-  const fields = [
-    { key: 'patient_address', label: t('issuer.patientAddress'), placeholder: 'G...', type: 'text' },
-    { key: 'vaccine_name', label: t('issuer.vaccineName'), placeholder: t('issuer.vaccineNamePlaceholder'), type: 'text' },
-    { key: 'date_administered', label: t('issuer.dateAdministered'), placeholder: '', type: 'date' },
-  ];
-
   return (
     <div style={styles.page}>
-      <h2 style={{ marginBottom: '1.5rem', color: 'var(--text)' }}>Issue Vaccination NFT</h2>
+      <div style={{ borderLeft: '4px solid var(--color-success)', paddingLeft: '0.75rem', marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem' }}>
+          <h2 style={{ color: 'var(--text)', margin: 0 }}>Issue Vaccination NFT</h2>
+          <RoleBadge role="issuer" />
+        </div>
+      </div>
       <form style={styles.form} onSubmit={handleSubmit} role="form">
         {[
           { key: 'patient_address', label: 'Patient Stellar Address', placeholder: 'G...' },
@@ -135,14 +141,17 @@ export default function IssuerDashboard() {
       </form>
       <div aria-live="polite" aria-atomic="true">
         {mintResult && (
-          <div style={{ marginTop: '1rem', padding: '0.75rem 1rem', background: '#0f172a', borderRadius: 8, color: '#4ade80' }}>
+          <div style={{ marginTop: '1rem', padding: '0.75rem 1rem', background: 'var(--surface)', border: '1px solid var(--color-success-border)', borderRadius: 8, color: 'var(--color-success)' }}>
             <p>✅ Vaccination NFT minted!</p>
-            <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '0.25rem' }}>Token ID: {mintResult.tokenId}</p>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'flex', alignItems: 'center' }}>
+              Token ID: {mintResult.tokenId}
+              <CopyButton text={String(mintResult.tokenId)} label="token ID" />
+            </p>
             <a
               href={`https://stellar.expert/explorer/testnet/tx/${mintResult.transactionHash}`}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ fontSize: '0.85rem', color: '#0ea5e9' }}
+              style={{ fontSize: '0.85rem', color: 'var(--accent)' }}
             >
               View on Stellar Explorer ↗
             </a>

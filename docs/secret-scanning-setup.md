@@ -1,151 +1,163 @@
-# Secret Scanning Setup Guide
+# Secret Scanning Setup
 
-## Overview
+## What is Gitleaks and why does VacciChain use it?
 
-VacciChain uses [Gitleaks](https://github.com/gitleaks/gitleaks) to prevent accidental commits of sensitive credentials including:
-- Stellar secret keys (S...)
-- JWT secrets
-- Private keys
-- API tokens
-- Soroban secrets
+[Gitleaks](https://github.com/gitleaks/gitleaks) is an open-source tool that scans Git repositories for hardcoded secrets — API keys, passwords, private keys, and similar credentials — before they can be committed or pushed.
 
-## Protection Layers
+VacciChain handles Stellar secret keys (`ADMIN_SECRET_KEY`, `SEP10_SERVER_KEY`, `ISSUER_SECRET_KEY`), JWT signing secrets, and Soroban contract credentials. A single leaked key can allow an attacker to mint or revoke vaccination records on behalf of any issuer, drain a funded wallet, or forge authentication tokens. Gitleaks is configured as a pre-commit hook so secrets are caught locally before they ever reach the remote repository. A matching GitHub Actions workflow provides a second layer of protection on every push and pull request.
 
-### 1. Pre-commit Hook (Local)
-Blocks commits containing secrets before they reach the repository.
+---
 
-### 2. GitHub Actions (CI/CD)
-Scans every push and pull request to main/develop branches.
+## Installation
 
-## Setup Instructions
-
-### For Linux/macOS Users
+### Linux
 
 ```bash
-# Run the setup script
 chmod +x scripts/setup-git-hooks.sh
 ./scripts/setup-git-hooks.sh
 ```
 
-### For Windows Users
+The script downloads Gitleaks v8.18.4, installs it to `/usr/local/bin`, installs the `pre-commit` Python package, and wires up the hook.
+
+**Prerequisites:** `wget`, `tar`, `sudo`, Python with `pip`.
+
+### macOS
+
+```bash
+chmod +x scripts/setup-git-hooks.sh
+./scripts/setup-git-hooks.sh
+```
+
+The script installs Gitleaks via Homebrew and then installs the `pre-commit` hook.
+
+**Prerequisites:** [Homebrew](https://brew.sh/), Python with `pip`.
+
+### Windows
 
 ```powershell
-# Run the PowerShell script
 .\scripts\setup-git-hooks.ps1
 ```
 
-### Manual Setup
+The script installs Gitleaks via `winget` and then installs the `pre-commit` hook.
 
-If the automated scripts don't work:
+**Prerequisites:** [winget](https://learn.microsoft.com/en-us/windows/package-manager/winget/) (included in Windows 10 1709+ / Windows 11), Python with `pip`.
 
-1. **Install Gitleaks**
-   - **macOS**: `brew install gitleaks`
-   - **Linux**: Download from [releases](https://github.com/gitleaks/gitleaks/releases)
-   - **Windows**: `winget install gitleaks` or download from releases
+### Manual setup (any platform)
 
-2. **Install pre-commit**
+If the scripts fail, follow these steps:
+
+1. Install Gitleaks from the [releases page](https://github.com/gitleaks/gitleaks/releases) and ensure it is on your `PATH`.
+2. Install `pre-commit`:
    ```bash
    pip install pre-commit
    ```
-
-3. **Install hooks**
+3. Install the hook:
    ```bash
    pre-commit install
    ```
 
-## Usage
+---
 
-### Manual Scanning
+## Verifying the setup
 
-Scan entire repository:
+After running the script, make a test commit. The hook will run automatically. You can also trigger it manually:
+
 ```bash
-gitleaks detect --source . --verbose
-```
-
-Scan staged files only:
-```bash
+# Scan staged files only (runs before each commit)
 gitleaks protect --staged
-```
 
-Scan with redacted output:
-```bash
+# Scan the entire working tree
 gitleaks detect --source . --verbose --redact
 ```
 
-### Historical Scan
-
-To scan all historical commits:
-```bash
-gitleaks detect --source . --log-opts="--all" --verbose
-```
+---
 
 ## Configuration
 
-The `.gitleaks.toml` file contains:
-- Custom rules for VacciChain-specific secrets
-- Allowlist for false positives (example files, tests)
-- Patterns for Stellar keys, JWT secrets, API keys
+The `.gitleaks.toml` file at the repository root defines:
 
-## Handling False Positives
+- **Custom rules** for Stellar secret keys, JWT secrets, Soroban keys, and generic API keys, layered on top of Gitleaks' built-in ruleset.
+- **Allowlist** for known safe paths (`.env.example`, test files, Markdown docs) and placeholder patterns (`EXAMPLE_*`, `<your-key-here>`, etc.).
 
-If gitleaks flags a false positive:
+Edit `.gitleaks.toml` to add project-specific rules or to allowlist additional false positives.
 
-1. **Verify it's not a real secret**
-2. **Add to allowlist** in `.gitleaks.toml`:
-   ```toml
-   [allowlist]
-   paths = [
-     '''path/to/file\.ext$'''
-   ]
-   ```
+---
 
-## Bypassing (Emergency Only)
+## If a secret is accidentally committed
 
-⚠️ **Not recommended** - Only use in emergencies:
+Act immediately — assume the secret is compromised from the moment it appears in a commit, even if the push was to a private repository.
+
+### 1. Revoke and rotate the secret
+
+| Secret | How to rotate |
+|---|---|
+| `ADMIN_SECRET_KEY` / `ISSUER_SECRET_KEY` / `SEP10_SERVER_KEY` | Generate a new Stellar keypair (`stellar keys generate`), update the contract's issuer allowlist if needed, and update `.env` / your secrets manager. |
+| `JWT_SECRET` | Replace with a new random value. All existing sessions are immediately invalidated. |
+| Any third-party API key | Revoke in the provider's dashboard and issue a new key. |
+
+### 2. Remove the secret from Git history
+
+Use [git-filter-repo](https://github.com/newren/git-filter-repo) (preferred over `git filter-branch`):
 
 ```bash
-# Skip pre-commit hooks (NOT RECOMMENDED)
+pip install git-filter-repo
+git filter-repo --path <file-containing-secret> --invert-paths
+```
+
+Or to replace the literal value everywhere in history:
+
+```bash
+git filter-repo --replace-text <(echo 'ACTUAL_SECRET_VALUE==>REMOVED')
+```
+
+After rewriting history, force-push all affected branches:
+
+```bash
+git push origin --force --all
+git push origin --force --tags
+```
+
+> **Note:** Force-pushing rewrites shared history. Coordinate with all contributors so they re-clone or rebase onto the new history.
+
+### 3. Invalidate GitHub's cached view
+
+GitHub caches repository content. After force-pushing, [contact GitHub Support](https://support.github.com/contact) to request removal of the secret from cached views and the reflog.
+
+### 4. Audit for misuse
+
+Check Stellar Horizon for any transactions signed with the leaked key after the commit timestamp. Review application logs for unexpected JWT usage.
+
+---
+
+## Bypassing the hook (emergency only)
+
+```bash
 git commit --no-verify -m "message"
 ```
 
-## CI/CD Integration
+Only use this if the hook is blocking a genuine false positive that cannot wait for a `.gitleaks.toml` update. Document the reason in the commit message and open a follow-up issue to fix the allowlist.
 
-GitHub Actions workflow (`.github/workflows/gitleaks.yml`) runs on:
-- Every push to main/develop
-- Every pull request to main/develop
+---
 
-Failed scans will:
-- Block the PR from merging
-- Upload a detailed report as an artifact
+## CI/CD
+
+The GitHub Actions workflow at `.github/workflows/gitleaks.yml` runs Gitleaks on every push and pull request targeting `main` or `develop`. A failed scan blocks the PR from merging and uploads a redacted report as a workflow artifact.
+
+---
 
 ## Troubleshooting
 
-### Pre-commit hook not running
+**Hook not running after setup**
 ```bash
 pre-commit install
 ```
 
-### Gitleaks not found
-Ensure gitleaks is in your PATH:
+**`gitleaks: command not found`**
+Ensure the binary is on your `PATH`:
 ```bash
-which gitleaks  # Linux/macOS
-where gitleaks  # Windows
+which gitleaks   # Linux/macOS
+where gitleaks   # Windows
 ```
 
-### False positive in CI
-Update `.gitleaks.toml` and push the changes.
-
-## Best Practices
-
-1. **Never commit real secrets** - Use environment variables
-2. **Use `.env.example`** for template files
-3. **Rotate secrets** if accidentally committed
-4. **Run manual scans** periodically
-5. **Keep gitleaks updated** for latest detection rules
-
-## Support
-
-For issues or questions:
-- Check [Gitleaks documentation](https://github.com/gitleaks/gitleaks)
-- Review `.gitleaks.toml` configuration
-- Contact the security team
+**False positive blocking a commit**
+Add the file path or pattern to the `[allowlist]` section in `.gitleaks.toml`, commit that change, then retry your original commit.

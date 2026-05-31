@@ -1,16 +1,13 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import PatientDashboard from './PatientDashboard';
 
 jest.mock('../hooks/useFreighter', () => ({ useAuth: jest.fn() }));
 jest.mock('../hooks/useVaccination', () => ({ useVaccination: jest.fn() }));
+jest.mock('../hooks/useConsent', () => ({ useConsent: jest.fn() }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key, opts) => {
+    t: (key) => {
       if (key === 'patient.title') return 'My Vaccination Records';
-      if (key === 'patient.recordCount') return `${opts?.count} records`;
-      if (key === 'patient.pageOf') return `Page ${opts?.page} of ${opts?.total}`;
-      if (key === 'patient.prevPage') return 'Previous';
-      if (key === 'patient.nextPage') return 'Next';
       return key;
     },
   }),
@@ -18,18 +15,23 @@ jest.mock('react-i18next', () => ({
 
 import { useAuth } from '../hooks/useFreighter';
 import { useVaccination } from '../hooks/useVaccination';
+import { useConsent } from '../hooks/useConsent';
 
 const WALLET = 'G12345678901234567890123456789012345678901234567890123456';
 
 describe('PatientDashboard', () => {
   const mockConnect = jest.fn();
+  const mockDisconnect = jest.fn();
 
-  beforeEach(() => { jest.clearAllMocks(); });
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useConsent.mockReturnValue({ consented: null, giveConsent: jest.fn(), loading: false });
+    useVaccination.mockReturnValue({ records: [], loading: false, error: null, refetch: jest.fn() });
+  });
 
   describe('when not connected', () => {
     beforeEach(() => {
-      useAuth.mockReturnValue({ publicKey: null, connect: mockConnect });
-      useVaccination.mockReturnValue({ fetchRecords: jest.fn(), loading: false });
+      useAuth.mockReturnValue({ publicKey: null, connect: mockConnect, disconnect: mockDisconnect });
     });
 
     it('shows connect wallet prompt', () => {
@@ -46,112 +48,53 @@ describe('PatientDashboard', () => {
 
   describe('when connected', () => {
     beforeEach(() => {
-      useAuth.mockReturnValue({ publicKey: WALLET, connect: mockConnect });
+      useAuth.mockReturnValue({ publicKey: WALLET, connect: mockConnect, disconnect: mockDisconnect });
     });
 
-    it('shows title', async () => {
-      useVaccination.mockReturnValue({
-        fetchRecords: jest.fn().mockResolvedValue({ data: [], total: 0, page: 1, limit: 20 }),
-        loading: false,
-      });
+    it('shows title', () => {
       render(<PatientDashboard />);
       expect(screen.getByText(/My Vaccination Records/i)).toBeInTheDocument();
     });
 
     it('shows wallet address', () => {
-      useVaccination.mockReturnValue({
-        fetchRecords: jest.fn().mockResolvedValue({ data: [], total: 0, page: 1, limit: 20 }),
-        loading: false,
-      });
       render(<PatientDashboard />);
       expect(screen.getByText(/Wallet:/i)).toBeInTheDocument();
     });
 
     it('shows loading skeleton when loading', () => {
-      useVaccination.mockReturnValue({
-        fetchRecords: jest.fn().mockResolvedValue({ data: [], total: 0, page: 1, limit: 20 }),
-        loading: true,
-      });
+      useVaccination.mockReturnValue({ records: [], loading: true, error: null, refetch: jest.fn() });
       render(<PatientDashboard />);
-      // NFTCardSkeleton injects a keyframe style tag
       const styleTag = document.querySelector('style');
       expect(styleTag).not.toBeNull();
       expect(styleTag.textContent).toMatch(/vacciPulse/);
     });
 
-    it('shows empty state when no records', async () => {
-      useVaccination.mockReturnValue({
-        fetchRecords: jest.fn().mockResolvedValue({ data: [], total: 0, page: 1, limit: 20 }),
-        loading: false,
-      });
+    it('shows empty state when no records', () => {
       render(<PatientDashboard />);
-      await waitFor(() => expect(screen.getByText(/No vaccination records found/i)).toBeInTheDocument());
+      expect(screen.getByText(/No vaccination records have been issued yet/i)).toBeInTheDocument();
     });
 
-    it('shows record count when records exist', async () => {
+    it('does not show empty state while loading', () => {
+      useVaccination.mockReturnValue({ records: [], loading: true, error: null, refetch: jest.fn() });
+      render(<PatientDashboard />);
+      expect(screen.queryByText(/No vaccination records have been issued yet/i)).not.toBeInTheDocument();
+    });
+
+    it('shows record count when records exist', () => {
       const records = [
         { token_id: '1', vaccine_name: 'COVID-19', date_administered: '2024-01-15', issuer: 'G123' },
         { token_id: '2', vaccine_name: 'Flu', date_administered: '2023-10-01', issuer: 'G456' },
       ];
-      useVaccination.mockReturnValue({
-        fetchRecords: jest.fn().mockResolvedValue({ data: records, total: 2, page: 1, limit: 20 }),
-        loading: false,
-      });
+      useVaccination.mockReturnValue({ records, loading: false, error: null, refetch: jest.fn() });
       render(<PatientDashboard />);
-      await waitFor(() => expect(screen.getByText(/2 records/i)).toBeInTheDocument());
+      expect(screen.getByText(/2 records/i)).toBeInTheDocument();
     });
 
-    it('shows pagination when multiple pages exist', async () => {
-      const records = Array.from({ length: 20 }, (_, i) => ({
-        token_id: String(i + 1), vaccine_name: 'COVID-19', date_administered: '2024-01-15', issuer: 'G123',
-      }));
-      useVaccination.mockReturnValue({
-        fetchRecords: jest.fn().mockResolvedValue({ data: records, total: 40, page: 1, limit: 20 }),
-        loading: false,
-      });
+    it('shows error message and retry button on error', () => {
+      useVaccination.mockReturnValue({ records: [], loading: false, error: 'Network error', refetch: jest.fn() });
       render(<PatientDashboard />);
-      await waitFor(() => expect(screen.getByText(/Page 1 of 2/i)).toBeInTheDocument());
-      expect(screen.getByRole('button', { name: /Next/i })).toBeInTheDocument();
-    });
-
-    it('fetches next page when Next is clicked', async () => {
-      const mockFetch = jest.fn()
-        .mockResolvedValueOnce({ data: [], total: 40, page: 1, limit: 20 })
-        .mockResolvedValueOnce({ data: [], total: 40, page: 2, limit: 20 });
-      useVaccination.mockReturnValue({ fetchRecords: mockFetch, loading: false });
-
-      render(<PatientDashboard />);
-      await waitFor(() => screen.getByRole('button', { name: /Next/i }));
-      fireEvent.click(screen.getByRole('button', { name: /Next/i }));
-
-      await waitFor(() => expect(mockFetch).toHaveBeenCalledWith(WALLET, { page: 2, limit: 20 }));
-    });
-
-    it('passes page and limit to fetchRecords on initial load', async () => {
-      const mockFetch = jest.fn().mockResolvedValue({ data: [], total: 0, page: 1, limit: 20 });
-      useVaccination.mockReturnValue({ fetchRecords: mockFetch, loading: false });
-
-      render(<PatientDashboard />);
-      await waitFor(() => expect(mockFetch).toHaveBeenCalledWith(WALLET, { page: 1, limit: 20 }));
-    });
-
-    // Edge case / null value tests — Closes #345
-    it('handles API response with null records array gracefully', async () => {
-      useVaccination.mockReturnValue({
-        fetchRecords: jest.fn().mockResolvedValue({ data: null, total: 0, page: 1, limit: 20 }),
-        loading: false,
-      });
-      render(<PatientDashboard />);
-      await waitFor(() => expect(screen.getByText(/No vaccination records found/i)).toBeInTheDocument());
-    });
-
-    it('handles API response with undefined data gracefully', async () => {
-      useVaccination.mockReturnValue({
-        fetchRecords: jest.fn().mockResolvedValue({ total: 0, page: 1, limit: 20 }),
-        loading: false,
-      });
-      render(<PatientDashboard />);
-      await waitFor(() => expect(screen.getByText(/No vaccination records found/i)).toBeInTheDocument());
+      expect(screen.getByText(/Network error/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
     });
   });
 });

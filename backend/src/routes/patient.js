@@ -4,12 +4,14 @@ const authMiddleware = require('../middleware/auth');
 const { invokeContract } = require('../stellar/soroban');
 const { resolveContractErrorMessage } = require('../stellar/contractErrors');
 const { audit } = require('../middleware/auditLog');
+const validate = require('../middleware/validate');
+const { registerSchema } = require('./schemas/patient.schemas');
 
 const router = express.Router();
 
 // POST /patient/register — self-register wallet into the on-chain allowlist.
 // Requires a valid patient JWT (SEP-10 authenticated).
-router.post('/register', authMiddleware, async (req, res) => {
+router.post('/register', authMiddleware, validate(registerSchema), async (req, res) => {
   const { publicKey } = req.user;
 
   try {

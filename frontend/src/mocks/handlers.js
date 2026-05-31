@@ -1,4 +1,4 @@
-import { http, HttpResponse } from 'msw';
+export const handlers = []
 
 export const handlers = [
   // Authentication
@@ -20,18 +20,26 @@ export const handlers = [
   }),
 
   // Vaccination Records
-  http.get('/v1/vaccination/:wallet', ({ params }) => {
+  http.get('/v1/vaccination/:wallet', ({ params, url }) => {
     const { wallet } = params;
+    const page = Number(url.searchParams.get('page') || '1');
+    const limit = Number(url.searchParams.get('limit') || '10');
+    const records = Array.from({ length: 24 }, (_, index) => ({
+      token_id: String(index + 1),
+      vaccine_name: 'MMR',
+      date_administered: `2026-01-${String(index + 1).padStart(2, '0')}`,
+      issuer_address: 'GISS...',
+    }));
+    const total = records.length;
+    const start = (page - 1) * limit;
+    const data = records.slice(start, start + limit);
+
     return HttpResponse.json({
       wallet,
-      records: [
-        { 
-          vaccine_name: 'MMR', 
-          date_administered: '2026-01-01', 
-          lot_number: 'LOT123',
-          issuer_address: 'GISS...'
-        }
-      ]
+      data,
+      total,
+      page,
+      limit,
     });
   }),
 

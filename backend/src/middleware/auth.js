@@ -70,4 +70,55 @@ function authMiddleware(req, res, next) {
   next();
 }
 
+/**
+ * Auth middleware variant that also accepts the 'admin' role.
+ * Use only on admin-only routes.
+ */
+function adminAuthMiddleware(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing authorization header' });
+  }
+
+  const token = header.slice(7);
+  const keys = getVerificationKeys();
+  let decoded = null;
+
+  let preferredKid = null;
+  try {
+    const unverified = jwt.decode(token, { complete: true });
+    preferredKid = unverified?.header?.kid || null;
+  } catch (_) {}
+
+  const ordered = preferredKid
+    ? [...keys].sort((a) => (a.kid === preferredKid ? -1 : 1))
+    : keys;
+
+  for (const key of ordered) {
+    try {
+      decoded = jwt.verify(token, key.secret);
+      break;
+    } catch (_) {}
+  }
+
+  if (!decoded) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+
+  const requiredClaims = ['sub', 'role', 'wallet', 'exp'];
+  for (const claim of requiredClaims) {
+    if (!decoded[claim]) {
+      return res.status(401).json({ error: `Missing or empty claim: ${claim}` });
+    }
+  }
+
+  if (!['patient', 'issuer', 'admin'].includes(decoded.role)) {
+    return res.status(401).json({ error: 'Invalid role claim' });
+  }
+
+  req.user = decoded;
+  next();
+}
+
 module.exports = authMiddleware;
+module.exports.adminAuthMiddleware = adminAuthMiddleware;

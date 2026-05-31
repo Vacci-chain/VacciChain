@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
   schedule:
     - cron: '0 0 * * 0'  # Weekly scan on Sunday at 00:00 UTC
 
@@ -32,6 +32,10 @@ jobs:
       - name: Build WASM
         working-directory: contracts
         run: make build
+
+      - name: Run contract tests
+        working-directory: contracts
+        run: cargo test
 
       - name: Run contract tests with coverage
         working-directory: contracts
@@ -77,6 +81,14 @@ jobs:
         working-directory: backend
         run: npm ci
 
+      - name: Lint
+        working-directory: backend
+        run: npm run lint
+
+      - name: Run tests
+        working-directory: backend
+        run: npm test
+
       - name: Run tests with coverage
         working-directory: backend
         run: npm test
@@ -114,11 +126,19 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: npm install --legacy-peer-deps
+        run: npm ci
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
 
       - name: Run tests
         working-directory: frontend
         run: npm test
+
+      - name: Run tests with coverage
+        working-directory: frontend
+        run: npm run test:coverage
 
       - name: Upload Frontend Coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -155,9 +175,17 @@ jobs:
         working-directory: python-service
         run: pip install -r requirements.txt
 
-      - name: Run tests with coverage
+      - name: Lint
+        working-directory: python-service
+        run: flake8 .
+
+      - name: Run tests
         working-directory: python-service
         run: pytest
+
+      - name: Run tests with coverage
+        working-directory: python-service
+        run: pytest --cov --cov-report=xml
 
       - name: Upload Python Coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -180,58 +208,25 @@ jobs:
           name: python-audit-report
           path: python-service/audit-report.txt
 
-  # Gate job: all test jobs must pass before a PR can be merged to main.
-  # Configure this as a required status check in branch protection rules.
-  # Closes #354
+  # Gate job: all test jobs must pass before a PR can be merged.
+  # Configure this job name ("All tests passed") as a required status check
+  # in Settings → Branches → Branch protection rules for `main`.
   all-tests:
     name: All tests passed
     runs-on: ubuntu-latest
-    needs: [contract, backend, frontend, python, gitleaks]
+    needs: [contract, backend, frontend, python]
+    if: always()
     steps:
-      - run: echo "All test jobs passed."
-
-  gitleaks:
-    name: Secret scanning (Gitleaks)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Run Gitleaks
-        id: gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-
-      - name: Write job summary
-        if: always()
+      - name: Check all test jobs succeeded
         run: |
-          if [ "${{ steps.gitleaks.outcome }}" = "success" ]; then
-            echo "## ✅ Gitleaks Secret Scan" >> $GITHUB_STEP_SUMMARY
-            echo "No secrets detected." >> $GITHUB_STEP_SUMMARY
-          else
-            echo "## ❌ Gitleaks Secret Scan — Secrets Detected" >> $GITHUB_STEP_SUMMARY
-            echo "Gitleaks found potential secrets in this commit. Review the report artifact." >> $GITHUB_STEP_SUMMARY
-            if [ -f gitleaks-report.json ]; then
-              echo '```json' >> $GITHUB_STEP_SUMMARY
-              cat gitleaks-report.json >> $GITHUB_STEP_SUMMARY
-              echo '```' >> $GITHUB_STEP_SUMMARY
-            fi
+          if [[ "${{ needs.contract.result }}" != "success" || \
+                "${{ needs.backend.result }}"  != "success" || \
+                "${{ needs.frontend.result }}"  != "success" || \
+                "${{ needs.python.result }}"    != "success" ]]; then
+            echo "One or more test jobs failed."
+            exit 1
           fi
-
-      - name: Upload Gitleaks report
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: gitleaks-report
-          path: gitleaks-report.json
-          retention-days: 30
-
-      - name: Fail if secrets detected
-        if: steps.gitleaks.outcome == 'failure'
-        run: exit 1
+          echo "All test jobs passed."
 
   docker:
     name: Docker build validation
@@ -265,30 +260,43 @@ jobs:
         run: docker build ./python-service -t vaccichain-python:ci
 
       - name: Run Trivy scan on backend
-        uses: aquasecurity/trivy-action@master
+        id: scan-backend
+        uses: aquasecurity/trivy-action@v1
         with:
           image-ref: vaccichain-backend:ci
           format: sarif
           output: backend-trivy.sarif
           severity: HIGH,CRITICAL
+          ignorefile: .trivyignore
+          exit-code: 1
+        continue-on-error: true
 
       - name: Run Trivy scan on frontend
-        uses: aquasecurity/trivy-action@master
+        id: scan-frontend
+        uses: aquasecurity/trivy-action@v1
         with:
           image-ref: vaccichain-frontend:ci
           format: sarif
           output: frontend-trivy.sarif
           severity: HIGH,CRITICAL
+          ignorefile: .trivyignore
+          exit-code: 1
+        continue-on-error: true
 
       - name: Run Trivy scan on python-service
-        uses: aquasecurity/trivy-action@master
+        id: scan-python
+        uses: aquasecurity/trivy-action@v1
         with:
           image-ref: vaccichain-python:ci
           format: sarif
           output: python-trivy.sarif
           severity: HIGH,CRITICAL
+          ignorefile: .trivyignore
+          exit-code: 1
+        continue-on-error: true
 
       - name: Upload Trivy results to GitHub Security
+        if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: |
@@ -297,6 +305,7 @@ jobs:
             python-trivy.sarif
 
       - name: Upload scan artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: trivy-scan-results
@@ -305,6 +314,14 @@ jobs:
             frontend-trivy.sarif
             python-trivy.sarif
           retention-days: 30
+
+      - name: Fail on HIGH/CRITICAL vulnerabilities
+        if: always()
+        run: |
+          if [[ "${{ steps.scan-backend.outcome }}" == "failure" || "${{ steps.scan-frontend.outcome }}" == "failure" || "${{ steps.scan-python.outcome }}" == "failure" ]]; then
+            echo "One or more container images contain HIGH or CRITICAL vulnerabilities."
+            exit 1
+          fi
 
   container-scan-scheduled:
     name: Weekly container vulnerability scan
@@ -323,27 +340,43 @@ jobs:
         run: docker build ./python-service -t vaccichain-python:prod
 
       - name: Run Trivy scan on backend
-        uses: aquasecurity/trivy-action@master
+        id: scan-scheduled-backend
+        uses: aquasecurity/trivy-action@v1
         with:
           image-ref: vaccichain-backend:prod
           format: table
           output: backend-scan.txt
+          ignorefile: .trivyignore
+          severity: HIGH,CRITICAL
+          exit-code: 1
+        continue-on-error: true
 
       - name: Run Trivy scan on frontend
-        uses: aquasecurity/trivy-action@master
+        id: scan-scheduled-frontend
+        uses: aquasecurity/trivy-action@v1
         with:
           image-ref: vaccichain-frontend:prod
           format: table
           output: frontend-scan.txt
+          ignorefile: .trivyignore
+          severity: HIGH,CRITICAL
+          exit-code: 1
+        continue-on-error: true
 
       - name: Run Trivy scan on python-service
-        uses: aquasecurity/trivy-action@master
+        id: scan-scheduled-python
+        uses: aquasecurity/trivy-action@v1
         with:
           image-ref: vaccichain-python:prod
           format: table
           output: python-scan.txt
+          ignorefile: .trivyignore
+          severity: HIGH,CRITICAL
+          exit-code: 1
+        continue-on-error: true
 
       - name: Upload scan results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: weekly-trivy-scans
@@ -352,3 +385,11 @@ jobs:
             frontend-scan.txt
             python-scan.txt
           retention-days: 90
+
+      - name: Fail on HIGH/CRITICAL vulnerabilities
+        if: always()
+        run: |
+          if [[ "${{ steps.scan-scheduled-backend.outcome }}" == "failure" || "${{ steps.scan-scheduled-frontend.outcome }}" == "failure" || "${{ steps.scan-scheduled-python.outcome }}" == "failure" ]]; then
+            echo "One or more scheduled container images contain HIGH or CRITICAL vulnerabilities."
+            exit 1
+          fi

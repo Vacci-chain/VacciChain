@@ -4,6 +4,24 @@ use crate::events;
 use crate::ContractError;
 use crate::validate_input_length;
 
+/// Mint a new vaccination record NFT for a patient.
+///
+/// This function validates input length, enforces issuer authorization,
+/// verifies that the patient has self-registered, detects duplicate records,
+/// and stores the minted vaccination record into persistent contract storage.
+///
+/// # Arguments
+/// * `env` - The Soroban environment.
+/// * `patient` - The wallet address receiving the vaccination record.
+/// * `vaccine_name` - The vaccine identifier string.
+/// * `date_administered` - The administration date string.
+/// * `issuer` - The issuer wallet address authorized to mint records.
+/// * `dose_number` - Optional dose sequence number.
+/// * `dose_series` - Optional total doses in the series.
+///
+/// # Returns
+/// * `Ok(u64)` with the minted token ID on success.
+/// * `Err(ContractError)` on authorization failure, duplicate detection, or invalid input.
 pub fn mint_vaccination(
     env: &Env,
     patient: Address,
@@ -16,10 +34,10 @@ pub fn mint_vaccination(
     validate_input_length(&vaccine_name, "vaccine_name")?;
     validate_input_length(&date_administered, "date_administered")?;
 
-    // Require issuer auth
+    // Require that the issuer has signed the transaction before checking authorization.
     issuer.require_auth();
 
-    // Check issuer is authorized
+    // Authorized issuers are stored under DataKey::Issuer(issuer).
     let is_authorized: bool = env
         .storage()
         .persistent()
@@ -30,7 +48,7 @@ pub fn mint_vaccination(
         return Err(ContractError::Unauthorized);
     }
 
-    // Check patient has self-registered
+    // Patient must have self-registered to receive vaccination records.
     let is_registered: bool = env
         .storage()
         .persistent()
@@ -40,9 +58,8 @@ pub fn mint_vaccination(
         return Err(ContractError::PatientNotRegistered);
     }
 
-    // Compute deterministic token_id:
-    //   SHA-256(patient_xdr || vaccine_name || date_administered || issuer_xdr || ledger_sequence)
-    //   truncated to first 8 bytes as big-endian u64.
+    // Deterministically derive a token ID from the patient, vaccine, date,
+    // issuer, and ledger sequence. This is used for duplicate detection.
     let ledger_sequence = env.ledger().sequence();
     let token_id = compute_token_id(
         env,
@@ -53,18 +70,21 @@ pub fn mint_vaccination(
         ledger_sequence,
     );
 
-    // Duplicate detection: token_id collision means identical record already exists
+    // Duplicate detection by exact token ID. If this token already exists,
+    // the same vaccination record has already been minted.
     if env.storage().persistent().has(&DataKey::Token(token_id)) {
         return Err(ContractError::DuplicateRecord);
     }
 
-    // Also check patient's existing tokens for same (vaccine_name, date_administered)
+    // Load all tokens already associated with the patient.
     let tokens: Vec<u64> = env
         .storage()
         .persistent()
         .get(&DataKey::PatientTokens(patient.clone()))
         .unwrap_or(Vec::new(env));
 
+    // In addition to token-based duplicate detection, ensure the patient does not
+    // already have a record with the same vaccine name and administration date.
     for i in 0..tokens.len() {
         let tid = tokens.get(i).unwrap();
         let record: VaccinationRecord = env
@@ -77,7 +97,7 @@ pub fn mint_vaccination(
         }
     }
 
-    // Enforce per-patient record limit (default: 50)
+    // Enforce a per-patient record cap to prevent unbounded storage growth.
     let limit: u32 = env
         .storage()
         .persistent()
@@ -87,13 +107,7 @@ pub fn mint_vaccination(
         panic!("record limit exceeded");
     }
 
-    // Assign token ID
-    let token_id: u64 = env
-        .storage()
-        .persistent()
-        .get(&DataKey::NextTokenId)
-        .unwrap_or(1u64);
-
+    // Build the vaccination record and persist it under DataKey::Token(token_id).
     let record = VaccinationRecord {
         token_id,
         patient: patient.clone(),
@@ -107,16 +121,13 @@ pub fn mint_vaccination(
         dose_series,
     };
 
-    // Persist token
+    // Persist the token record.
     env.storage().persistent().set(&DataKey::Token(token_id), &record);
 
-    // Update patient token list
+    // Append the minted token to the patient's token list.
     let mut patient_tokens = tokens;
     patient_tokens.push_back(token_id);
     env.storage().persistent().set(&DataKey::PatientTokens(patient.clone()), &patient_tokens);
-
-    // Increment next token ID
-    env.storage().persistent().set(&DataKey::NextTokenId, &(token_id + 1));
 
     events::emit_minted(env, token_id, &patient, &vaccine_name, &issuer);
 

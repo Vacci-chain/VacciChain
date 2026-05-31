@@ -17,8 +17,15 @@ jest.mock('../src/stellar/soroban', () => {
       return Promise.resolve(sdk.xdr.ScVal.scvVec([]));
     }),
     getRpcServer: jest.fn().mockReturnValue({ getHealth: jest.fn().mockResolvedValue({}) }),
+    addIssuer: jest.fn().mockResolvedValue({ hash: 'mockhash123', ledger: 1000 }),
+    revokeIssuer: jest.fn().mockResolvedValue({ hash: 'mockhash456', ledger: 1001 }),
   };
 });
+
+jest.mock('../src/stellar/issuerCache', () => ({
+  isAuthorizedIssuer: jest.fn().mockResolvedValue(true),
+  invalidateCache: jest.fn(),
+}));
 
 function makeToken(role) {
   return jwt.sign(
@@ -113,16 +120,29 @@ describe('Admin Issuer Endpoints', () => {
     });
   });
 
-  // ── DELETE /admin/issuers/:address ────────────────────────────────────────
+  // ── DELETE /admin/issuers/:wallet ─────────────────────────────────────────
 
-  describe('DELETE /v1/admin/issuers/:address', () => {
+  describe('DELETE /v1/admin/issuers/:wallet', () => {
     it('revokes an issuer with admin JWT', async () => {
       const res = await request(app)
         .delete(`/v1/admin/issuers/${VALID_ISSUER_ADDRESS}`)
         .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
-      expect(res.body).toMatchObject({ address: VALID_ISSUER_ADDRESS, authorized: false });
+      expect(res.body).toMatchObject({ wallet: VALID_ISSUER_ADDRESS, authorized: false });
+      expect(res.body).toHaveProperty('hash');
+    });
+
+    it('returns 404 for non-existent issuer', async () => {
+      const { isAuthorizedIssuer } = require('../src/stellar/issuerCache');
+      isAuthorizedIssuer.mockResolvedValueOnce(false);
+
+      const res = await request(app)
+        .delete(`/v1/admin/issuers/${VALID_ISSUER_ADDRESS}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(404);
+      expect(res.body).toHaveProperty('error');
     });
 
     it('rejects invalid Stellar address', async () => {

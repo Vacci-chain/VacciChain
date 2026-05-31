@@ -18,7 +18,7 @@
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "/ecs/vaccichain-staging",
+          "awslogs-group": "/ecs/vaccichain-staging/frontend",
           "awslogs-region": "REGION",
           "awslogs-stream-prefix": "frontend"
         }
@@ -103,7 +103,7 @@
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "/ecs/vaccichain-staging",
+          "awslogs-group": "/ecs/vaccichain-staging/backend",
           "awslogs-region": "REGION",
           "awslogs-stream-prefix": "backend"
         }
@@ -134,7 +134,7 @@
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "/ecs/vaccichain-staging",
+          "awslogs-group": "/ecs/vaccichain-staging/python-service",
           "awslogs-region": "REGION",
           "awslogs-stream-prefix": "python-service"
         }

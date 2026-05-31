@@ -1,11 +1,24 @@
 const request = require('supertest');
 const app = require('../src/app');
+const health = require('../src/health');
 
 describe('Health check', () => {
   it('GET /health returns ok', async () => {
     const res = await request(app).get('/health');
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('ok');
+    expect(typeof res.body.uptime).toBe('number');
+    expect(res.body.uptime).toBeGreaterThanOrEqual(0);
+  });
+
+  it('GET /health returns degraded when Soroban is unhealthy', async () => {
+    health.setSorobanHealthy(false);
+    const res = await request(app).get('/health');
+    expect(res.status).toBe(503);
+    expect(res.body.status).toBe('degraded');
+    expect(typeof res.body.uptime).toBe('number');
+    expect(res.body.uptime).toBeGreaterThanOrEqual(0);
+    health.setSorobanHealthy(true);
   });
 });
 

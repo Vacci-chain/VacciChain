@@ -1,29 +1,36 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import VerificationBadge from '../components/VerificationBadge';
 import NFTCard from '../components/NFTCard';
+import CopyButton from '../components/CopyButton';
 import { useToast } from '../hooks/useToast';
 
 const styles = {
   page: { maxWidth: 600, margin: '2rem auto', padding: '0 1rem' },
-  input: { padding: '0.6rem 0.75rem', background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: '1rem', width: '100%' },
-  btn: { padding: '0.6rem 1.5rem', background: 'var(--btn-primary)', color: '#fff', border: 'none', borderRadius: 8, fontSize: '1rem', marginTop: '0.75rem' },
+  input: { padding: '0.6rem 0.75rem', background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: '1rem', width: '100%', boxSizing: 'border-box', minHeight: '44px' },
+  btn: { padding: '0.7rem 1.5rem', background: 'var(--btn-primary)', color: '#fff', border: 'none', borderRadius: 8, fontSize: '1rem', marginTop: '0.75rem', minHeight: '44px', cursor: 'pointer' },
 };
 
 export default function VerifyPage() {
+  const { t } = useTranslation();
   const toast = useToast();
   const [wallet, setWallet] = useState('');
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const verify = async (address) => {
     setLoading(true);
     setResult(null);
+    setError(null);
     try {
       const res = await fetch(`/v1/verify/${address.trim()}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setResult(data);
+      toast('Verification successful', 'success');
     } catch (e) {
+      setError(e.message || 'Verification failed.');
       toast(e.message || 'Verification failed.', 'error');
     } finally {
       setLoading(false);
@@ -70,13 +77,17 @@ export default function VerifyPage() {
       </form>
 
       <div aria-live="polite" aria-atomic="true">
-        {error && <p style={{ color: '#f87171', marginTop: '1rem' }} role="alert">Error: {error}</p>}
+        {error && <p style={{ color: 'var(--color-error)', marginTop: '1rem' }} role="alert">Error: {error}</p>}
       </div>
 
       {result && (
         <div style={{ marginTop: '1.5rem' }} aria-live="polite">
           <VerificationBadge vaccinated={result.vaccinated} recordCount={result.record_count} />
-          <div style={{ marginTop: '1.5rem' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '1rem', wordBreak: 'break-all', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.25rem' }}>
+            Wallet: {wallet}
+            <CopyButton text={wallet} label="wallet address" />
+          </p>
+          <div style={{ marginTop: '1rem' }}>
             {result.records?.map((r) => <NFTCard key={r.token_id} record={r} />)}
           </div>
         </div>

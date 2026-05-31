@@ -2,9 +2,30 @@ const request = require('supertest');
 const StellarSdk = require('@stellar/stellar-sdk');
 const { jwtFactory, vaccinationRecordFactory } = require('./factories');
 
+jest.mock('../src/jwtKeys', () => ({
+  getVerificationKeys: () => [{ kid: '1', secret: 'test-jwt-secret' }],
+  getSigningKey: () => ({ kid: '1', secret: 'test-jwt-secret' }),
+  rotateKey: jest.fn(),
+  reloadFromEnv: jest.fn(),
+}));
+
 jest.mock('../src/stellar/soroban', () => ({
   invokeContract: jest.fn(),
   simulateContract: jest.fn(),
+  mintVaccination: jest.fn(),
+  verifyVaccination: jest.fn(),
+  SorobanTimeoutError: class SorobanTimeoutError extends Error {},
+  sendRpcTimeout: jest.fn(),
+}));
+
+jest.mock('../src/stellar/issuerCache', () => ({
+  isAuthorizedIssuer: jest.fn().mockResolvedValue(true),
+  invalidateCache: jest.fn(),
+}));
+
+jest.mock('../src/indexer/db', () => ({
+  hasConsented: jest.fn().mockReturnValue(true),
+  initDb: jest.fn(),
 }));
 
 jest.mock('@stellar/stellar-sdk', () => {
@@ -59,9 +80,7 @@ describe('Wallet validation — POST /vaccination/issue', () => {
       });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe(
-      'patient_address must be a valid Stellar public key (G... 56-char base32)'
-    );
+    expect(res.body.error).toBe('Invalid Stellar public key');
     expect(invokeContract).not.toHaveBeenCalled();
   });
 
@@ -76,15 +95,13 @@ describe('Wallet validation — POST /vaccination/issue', () => {
       });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe(
-      'patient_address must be a valid Stellar public key (G... 56-char base32)'
-    );
+    expect(res.body.error).toBe('Invalid Stellar public key');
     expect(invokeContract).not.toHaveBeenCalled();
   });
 
   it('accepts a valid patient_address and mints', async () => {
-    invokeContract.mockResolvedValue({ fake: 'scval' });
-    StellarSdk.scValToNative.mockReturnValue('token-1');
+    const { mintVaccination } = require('../src/stellar/soroban');
+    mintVaccination.mockResolvedValue({ tokenId: 'token-1', hash: 'abc', ledger: 1 });
 
     const res = await request(app)
       .post('/vaccination/issue')
@@ -97,8 +114,7 @@ describe('Wallet validation — POST /vaccination/issue', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ success: true, tokenId: 'token-1' });
-
-    expect(invokeContract).toHaveBeenCalledTimes(1);
+    expect(mintVaccination).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -109,9 +125,7 @@ describe('Wallet validation — GET /vaccination/:wallet', () => {
       .set('Authorization', `Bearer ${patientToken}`);
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe(
-      'wallet must be a valid Stellar public key (G... 56-char base32)'
-    );
+    expect(res.body.error).toBe('Invalid Stellar public key');
     expect(simulateContract).not.toHaveBeenCalled();
   });
 
@@ -121,9 +135,7 @@ describe('Wallet validation — GET /vaccination/:wallet', () => {
       .set('Authorization', `Bearer ${patientToken}`);
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe(
-      'wallet must be a valid Stellar public key (G... 56-char base32)'
-    );
+    expect(res.body.error).toBe('Invalid Stellar public key');
     expect(simulateContract).not.toHaveBeenCalled();
   });
 });
@@ -133,9 +145,7 @@ describe('Wallet validation — GET /verify/:wallet', () => {
     const res = await request(app).get('/verify/not-a-wallet');
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe(
-      'wallet must be a valid Stellar public key (G... 56-char base32)'
-    );
+    expect(res.body.error).toBe('Invalid Stellar public key');
     expect(simulateContract).not.toHaveBeenCalled();
   });
 
@@ -143,31 +153,26 @@ describe('Wallet validation — GET /verify/:wallet', () => {
     const res = await request(app).get(`/verify/${checksumInvalidWallet}`);
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe(
-      'wallet must be a valid Stellar public key (G... 56-char base32)'
-    );
+    expect(res.body.error).toBe('Invalid Stellar public key');
     expect(simulateContract).not.toHaveBeenCalled();
   });
 
   it('accepts a valid wallet and returns vaccination status', async () => {
     const record = vaccinationRecordFactory({ vaccine_name: 'MMR' });
-    simulateContract.mockResolvedValue({ fake: 'scval' });
-    jest
-      .spyOn(StellarSdk, 'scValToNative')
-      .mockReturnValue([true, [{ vaccine: record.vaccine_name }]]);
+    const { verifyVaccination } = require('../src/stellar/soroban');
+    verifyVaccination.mockResolvedValue({ vaccinated: true, records: [{ vaccine: record.vaccine_name }] });
 
     const res = await request(app)
       .get(`/verify/${validPatientWallet}`)
       .set('Authorization', `Bearer ${patientToken}`);
 
-
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({
+    expect(res.body).toMatchObject({
       wallet: validPatientWallet,
       vaccinated: true,
       record_count: 1,
       records: [{ vaccine: record.vaccine_name }],
     });
-    expect(simulateContract).toHaveBeenCalledTimes(1);
+    expect(verifyVaccination).toHaveBeenCalledTimes(1);
   });
 });

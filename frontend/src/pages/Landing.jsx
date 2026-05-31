@@ -19,10 +19,10 @@ export default function Landing() {
       <p style={styles.sub}>{t('landing.subtitle')}</p>
       {publicKey ? (
         <>
-          <p style={{ color: '#4ade80', marginBottom: '1rem' }}>
+          <p style={{ color: 'var(--color-success)', marginBottom: '1rem' }}>
             {t('landing.connected', { address: `${publicKey.slice(0, 8)}…${publicKey.slice(-4)}` })}
           </p>
-          <button style={{ ...styles.btn, background: '#475569' }} onClick={disconnect} aria-label="Disconnect Freighter wallet">
+          <button style={{ ...styles.btn, background: 'var(--surface-2)', color: 'var(--text)' }} onClick={disconnect} aria-label="Disconnect Freighter wallet">
             Disconnect
           </button>
         </>

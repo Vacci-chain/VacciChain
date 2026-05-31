@@ -1,37 +1,16 @@
 const express = require('express');
-const { z } = require('zod');
 const StellarSdk = require('@stellar/stellar-sdk');
 const authMiddleware = require('../middleware/auth');
 const issuerMiddleware = require('../middleware/issuer');
 const { validateStellarPublicKey } = require('../middleware/wallet');
-const { invokeContract, simulateContract } = require('../stellar/soroban');
-const { resolveContractErrorMessage } = require('../stellar/contractErrors');
+const { invokeContract, simulateContract, mintVaccination, sendRpcTimeout, SorobanTimeoutError, checkDuplicateRecord } = require('../stellar/soroban');
+const { resolveContractErrorMessage, mapContractError } = require('../stellar/contractErrors');
 const { audit } = require('../middleware/auditLog');
 const validate = require('../middleware/validate');
 const { hasConsented } = require('../indexer/db');
+const { issueSchema, revokeSchema } = require('./schemas/vaccination.schemas');
 
 const router = express.Router();
-
-const issueSchema = z.object({
-  patient_address: z.string().refine((val) => {
-    try {
-      StellarSdk.Address.fromString(val);
-      return true;
-    } catch {
-      return false;
-    }
-  }, { message: 'Invalid Stellar address' }),
-  vaccine_name: z.string().min(1, 'vaccine_name is required'),
-  date_administered: z.string().refine((val) => !isNaN(Date.parse(val)), {
-    message: 'Invalid date format',
-  }),
-  dose_number: z.number().int().min(1).optional(),
-  dose_series: z.number().int().min(1).optional(),
-});
-
-const revokeSchema = z.object({
-  token_id: z.union([z.string(), z.number()]).transform((val) => String(val)),
-});
 
 /**
  * @swagger
@@ -84,6 +63,8 @@ const revokeSchema = z.object({
  *         description: Unauthorized
  *       403:
  *         description: Forbidden - issuer role required
+ *       409:
+ *         description: Duplicate record
  *       500:
  *         description: Contract invocation failed
  *         content:
@@ -96,6 +77,7 @@ router.post(
   '/issue',
   authMiddleware,
   issuerMiddleware,
+  validateStellarPublicKey('body', 'patient_address'),
   validate(issueSchema),
   async (req, res) => {
   const { patient_address, vaccine_name, date_administered, dose_number, dose_series } = req.body;
@@ -105,22 +87,35 @@ router.post(
     return res.status(403).json({ error: 'Patient has not provided consent. They must consent before a record can be issued.' });
   }
 
+  // Check for duplicate record before invoking contract
   try {
-    const toOptU32 = (v) => v != null
-      ? StellarSdk.xdr.ScVal.scvVec([StellarSdk.xdr.ScVal.scvU32(v)])
-      : StellarSdk.xdr.ScVal.scvVoid();
+    const existingTokenId = await checkDuplicateRecord(patient_address, vaccine_name, date_administered);
+    if (existingTokenId) {
+      audit({
+        actor: req.user.publicKey,
+        action: 'vaccination.issue',
+        target: patient_address,
+        result: 'failure',
+        meta: { error: 'Duplicate record', existing_token_id: existingTokenId },
+      });
+      return res.status(409).json({
+        error: 'Duplicate record',
+        existing_token_id: existingTokenId,
+      });
+    }
+  } catch (err) {
+    // If duplicate check fails, continue to contract invocation
+    // The contract will also check for duplicates
+  }
 
-    const args = [
-      StellarSdk.Address.fromString(patient_address).toScVal(),
-      StellarSdk.xdr.ScVal.scvString(vaccine_name),
-      StellarSdk.xdr.ScVal.scvString(date_administered),
-      StellarSdk.Address.fromString(req.user.publicKey).toScVal(),
-      toOptU32(dose_number),
-      toOptU32(dose_series),
-    ];
-
-    const result = await invokeContract(process.env.ISSUER_SECRET_KEY, 'mint_vaccination', args);
-    const tokenId = StellarSdk.scValToNative(result.returnValue);
+  try {
+    const result = await mintVaccination(
+      patient_address,
+      vaccine_name,
+      date_administered,
+      process.env.ISSUER_SECRET_KEY,
+      { doseNumber: dose_number, doseSeries: dose_series }
+    );
     const timestamp = new Date().toISOString();
 
     audit({
@@ -128,17 +123,23 @@ router.post(
       action: 'vaccination.issue',
       target: patient_address,
       result: 'success',
-      meta: { token_id: tokenId, vaccine_name, date_administered, dose_number, dose_series },
+      meta: { token_id: result.tokenId, vaccine_name, date_administered, dose_number, dose_series },
     });
+    // Invalidate verification cache for this wallet
+    const verifyRouter = require('../routes/verify');
+    if (verifyRouter.verifyCache) {
+      verifyRouter.verifyCache.delete(patient_address);
+    }
 
     res.json({
       success: true,
-      tokenId,
+      tokenId: result.tokenId,
       transactionHash: result.hash,
       ledger: result.ledger,
       timestamp,
     });
   } catch (err) {
+    if (err instanceof SorobanTimeoutError) return sendRpcTimeout(res);
     const errorMessage = resolveContractErrorMessage(err);
     audit({
       actor: req.user.publicKey,
@@ -147,6 +148,10 @@ router.post(
       result: 'failure',
       meta: { error: errorMessage },
     });
+    const mapped = mapContractError(err);
+    if (mapped?.name === 'DuplicateRecord') {
+      return res.status(409).json({ error: errorMessage });
+    }
     res.status(500).json({ error: errorMessage });
   }
 });
@@ -222,6 +227,7 @@ router.post(
 
       res.json({ success: true, token_id });
     } catch (err) {
+      if (err instanceof SorobanTimeoutError) return sendRpcTimeout(res);
       const errorMessage = resolveContractErrorMessage(err);
       audit({
         actor: req.user.publicKey,
@@ -277,30 +283,17 @@ router.post(
  *               $ref: '#/components/schemas/Error'
  */
 // GET /vaccination/:wallet — fetch paginated records for a wallet
-router.get('/:wallet', authMiddleware, validateStellarPublicKey('params', 'wallet', 'wallet'), async (req, res) => {
+router.get('/:wallet', authMiddleware, validateStellarPublicKey('params', 'wallet'), async (req, res) => {
   const { wallet } = req.params;
-
-  const rawPage = req.query.page !== undefined ? Number(req.query.page) : 1;
-  const rawLimit = req.query.limit !== undefined ? Number(req.query.limit) : 20;
-
-  if (!Number.isInteger(rawPage) || rawPage < 1) {
-    return res.status(400).json({ error: 'page must be a positive integer' });
-  }
-  if (!Number.isInteger(rawLimit) || rawLimit < 1 || rawLimit > 100) {
-    return res.status(400).json({ error: 'limit must be an integer between 1 and 100' });
-  }
 
   try {
     const args = [StellarSdk.Address.fromString(wallet).toScVal()];
     const result = await simulateContract('verify_vaccination', args);
-    const [vaccinated, allRecords] = StellarSdk.scValToNative(result);
-
-    const total = allRecords.length;
-    const start = (rawPage - 1) * rawLimit;
-    const data = allRecords.slice(start, start + rawLimit);
-
-    res.json({ data, total, page: rawPage, limit: rawLimit });
+    const [, allRecords] = StellarSdk.scValToNative(result);
+    const records = Array.isArray(allRecords) ? allRecords : [];
+    res.json({ wallet, records });
   } catch (err) {
+    if (err instanceof SorobanTimeoutError) return sendRpcTimeout(res);
     const errorMessage = resolveContractErrorMessage(err);
     res.status(500).json({ error: errorMessage });
   }

@@ -26,7 +26,7 @@ describe('IssuerDashboard', () => {
   describe('when not connected', () => {
     beforeEach(() => {
       useAuth.mockReturnValue({ publicKey: null, role: null, connect: mockConnect });
-      useVaccination.mockReturnValue({ issueVaccination: mockIssueVaccination, loading: false });
+      useVaccination.mockReturnValue({ issueVaccination: mockIssueVaccination, checkIssuerStatus: jest.fn().mockResolvedValue(true), loading: false });
     });
 
     it('should show connect wallet prompt', () => {
@@ -54,7 +54,7 @@ describe('IssuerDashboard', () => {
   describe('when connected but not issuer', () => {
     beforeEach(() => {
       useAuth.mockReturnValue({ publicKey: 'G1234567890', role: 'user', connect: mockConnect });
-      useVaccination.mockReturnValue({ issueVaccination: mockIssueVaccination, loading: false });
+      useVaccination.mockReturnValue({ issueVaccination: mockIssueVaccination, checkIssuerStatus: jest.fn().mockResolvedValue(true), loading: false });
     });
 
     it('should show access denied message', () => {
@@ -67,7 +67,7 @@ describe('IssuerDashboard', () => {
   describe('when connected as issuer', () => {
     beforeEach(() => {
       useAuth.mockReturnValue({ publicKey: 'G1234567890', role: 'issuer', connect: mockConnect });
-      useVaccination.mockReturnValue({ issueVaccination: mockIssueVaccination, loading: false });
+      useVaccination.mockReturnValue({ issueVaccination: mockIssueVaccination, checkIssuerStatus: jest.fn().mockResolvedValue(true), loading: false });
     });
 
     it('should render form fields', () => {
@@ -118,7 +118,7 @@ describe('IssuerDashboard', () => {
     });
 
     it('should disable submit button when loading', () => {
-      useVaccination.mockReturnValue({ issueVaccination: mockIssueVaccination, loading: true });
+      useVaccination.mockReturnValue({ issueVaccination: mockIssueVaccination, checkIssuerStatus: jest.fn().mockResolvedValue(true), loading: true });
 
       render(<IssuerDashboard />);
 
@@ -127,7 +127,7 @@ describe('IssuerDashboard', () => {
     });
 
     it('should show loading text when loading', () => {
-      useVaccination.mockReturnValue({ issueVaccination: mockIssueVaccination, loading: true });
+      useVaccination.mockReturnValue({ issueVaccination: mockIssueVaccination, checkIssuerStatus: jest.fn().mockResolvedValue(true), loading: true });
 
       render(<IssuerDashboard />);
 

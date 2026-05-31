@@ -7,7 +7,67 @@ const {
   STELLAR_NETWORK_PASSPHRASE: NETWORK_PASSPHRASE,
   VACCINATIONS_CONTRACT_ID: CONTRACT_ID,
   SOROBAN_RPC_MAX_RETRIES,
+  SOROBAN_RPC_TIMEOUT_MS,
 } = config;
+
+class SorobanError extends Error {
+  constructor(message, originalError) {
+    super(message);
+    this.name = 'SorobanError';
+    this.original = originalError;
+  }
+}
+
+class SorobanRpcError extends SorobanError {
+  constructor(message, originalError) {
+    super(message, originalError);
+    this.name = 'SorobanRpcError';
+  }
+}
+
+class SorobanTransactionError extends SorobanError {
+  constructor(message, originalError) {
+    super(message, originalError);
+    this.name = 'SorobanTransactionError';
+  }
+}
+
+class SorobanSimulationError extends SorobanError {
+  constructor(message, originalError) {
+    super(message, originalError);
+    this.name = 'SorobanSimulationError';
+  }
+}
+
+class SorobanTimeoutError extends SorobanError {
+  constructor(context, elapsedMs) {
+    super(`RPC timeout after ${elapsedMs}ms (context: ${context})`);
+    this.name = 'SorobanTimeoutError';
+    this.context = context;
+    this.elapsedMs = elapsedMs;
+  }
+}
+
+/**
+ * Race an async fn against a timeout. Cleans up the timer on resolution.
+ * Throws SorobanTimeoutError if the timeout fires first.
+ */
+async function withTimeout(fn, context) {
+  const start = Date.now();
+  let timer;
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const elapsed = Date.now() - start;
+      logger.warn('Soroban RPC timeout', { context, rpcUrl: SOROBAN_RPC_URL, elapsedMs: elapsed });
+      reject(new SorobanTimeoutError(context, elapsed));
+    }, SOROBAN_RPC_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([fn(), timeoutPromise]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 // Fee in stroops (1 XLM = 10_000_000 stroops). Minimum is 100.
 const TX_FEE = String(process.env.SOROBAN_FEE || 100);
@@ -37,7 +97,7 @@ async function withRetry(fn, context = '') {
         });
         await new Promise((resolve) => setTimeout(resolve, backoff));
       }
-      return await fn();
+      return await withTimeout(fn, context);
     } catch (error) {
       lastError = error;
 
@@ -129,6 +189,67 @@ async function invokeContract(secretKey, method, args) {
   return { returnValue: result.returnValue, hash: response.hash, ledger: result.ledger };
 }
 
+function toOptionalU32(value) {
+  return value != null
+    ? StellarSdk.xdr.ScVal.scvVec([StellarSdk.xdr.ScVal.scvU32(value)])
+    : StellarSdk.xdr.ScVal.scvVoid();
+}
+
+/**
+ * Mint a vaccination record and submit a signed transaction.
+ * @param {string} patient - Stellar address of the patient
+ * @param {string} vaccineName - Vaccine name
+ * @param {string} dateAdministered - ISO-8601 timestamp
+ * @param {string} issuerSecret - Issuer secret key for signing
+ * @param {Object} [options]
+ * @param {number|null} [options.doseNumber]
+ * @param {number|null} [options.doseSeries]
+ */
+async function mintVaccination(patient, vaccineName, dateAdministered, issuerSecret, options = {}) {
+  try {
+    const issuerKeypair = StellarSdk.Keypair.fromSecret(issuerSecret);
+    const args = [
+      StellarSdk.Address.fromString(patient).toScVal(),
+      StellarSdk.xdr.ScVal.scvString(vaccineName),
+      StellarSdk.xdr.ScVal.scvString(dateAdministered),
+      StellarSdk.Address.fromString(issuerKeypair.publicKey()).toScVal(),
+      toOptionalU32(options.doseNumber),
+      toOptionalU32(options.doseSeries),
+    ];
+
+    const result = await invokeContract(issuerSecret, 'mint_vaccination', args);
+    const tokenId = StellarSdk.scValToNative(result.returnValue);
+    return {
+      tokenId,
+      hash: result.hash,
+      ledger: result.ledger,
+    };
+  } catch (error) {
+    if (error instanceof SorobanError) throw error;
+    throw new SorobanTransactionError('Failed to mint vaccination record', error);
+  }
+}
+
+/**
+ * Verify vaccination status via a read-only contract call.
+ * @param {string} wallet - Stellar wallet address to verify
+ */
+async function verifyVaccination(wallet) {
+  try {
+    const args = [StellarSdk.Address.fromString(wallet).toScVal()];
+    const rawResult = await simulateContract('verify_vaccination', args);
+    const [vaccinated, records] = StellarSdk.scValToNative(rawResult);
+    return {
+      wallet,
+      vaccinated,
+      records: Array.isArray(records) ? records : [],
+    };
+  } catch (error) {
+    if (error instanceof SorobanError) throw error;
+    throw new SorobanSimulationError('Failed to verify vaccination status', error);
+  }
+}
+
 /**
  * Read-only contract call (no signing needed).
  */
@@ -158,7 +279,57 @@ async function simulateContract(method, args) {
   return sim.result?.retval;
 }
 
-module.exports = { getRpcServer, invokeContract, simulateContract, addIssuer };
+/**
+ * Check if a patient already has a vaccination record with the same vaccine and date.
+ * Returns the token_id if found, null otherwise.
+ * @param {string} wallet - Patient wallet address
+ * @param {string} vaccineName - Vaccine name to check
+ * @param {string} dateAdministered - Date to check
+ */
+async function checkDuplicateRecord(wallet, vaccineName, dateAdministered) {
+  try {
+    const result = await verifyVaccination(wallet);
+    if (!result.vaccinated || !result.records || result.records.length === 0) {
+      return null;
+    }
+
+    // Find matching record by vaccine name and date
+    const duplicate = result.records.find(
+      (record) =>
+        record.vaccine_name === vaccineName &&
+        record.date_administered === dateAdministered
+    );
+
+    return duplicate ? duplicate.token_id : null;
+  } catch (error) {
+    // If verification fails, let the contract handle it
+    return null;
+  }
+}
+
+/**
+ * Send a 503 RPC timeout response. Use in route catch blocks when err is SorobanTimeoutError.
+ */
+function sendRpcTimeout(res) {
+  return res.status(503).json({ error: 'RPC timeout', retryAfter: 5 });
+}
+
+module.exports = {
+  getRpcServer,
+  invokeContract,
+  simulateContract,
+  mintVaccination,
+  verifyVaccination,
+  checkDuplicateRecord,
+  addIssuer,
+  revokeIssuer,
+  sendRpcTimeout,
+  SorobanError,
+  SorobanRpcError,
+  SorobanTransactionError,
+  SorobanSimulationError,
+  SorobanTimeoutError,
+};
 
 /**
  * Add a new issuer to the contract allowlist (admin-signed).
@@ -171,4 +342,17 @@ async function addIssuer(issuerWallet) {
     StellarSdk.Address.fromString(issuerWallet).toScAddress()
   )];
   return invokeContract(adminSecret, 'add_issuer', args);
+}
+
+/**
+ * Revoke an issuer from the contract allowlist (admin-signed).
+ * @param {string} issuerWallet - Stellar public key to deauthorize
+ */
+async function revokeIssuer(issuerWallet) {
+  const adminSecret = process.env.ADMIN_SECRET_KEY;
+  if (!adminSecret) throw new Error('ADMIN_SECRET_KEY not configured');
+  const args = [StellarSdk.xdr.ScVal.scvAddress(
+    StellarSdk.Address.fromString(issuerWallet).toScAddress()
+  )];
+  return invokeContract(adminSecret, 'revoke_issuer', args);
 }

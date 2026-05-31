@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 const s = {
   overlay: {
@@ -31,10 +31,39 @@ const s = {
  */
 export default function ConsentScreen({ onAccept, onDecline, loading = false }) {
   const [checked, setChecked] = useState(false);
+  const overlayRef = useRef(null);
+  const modalRef = useRef(null);
+  const previousActive = useRef(null);
+
+  useEffect(() => {
+    previousActive.current = document.activeElement;
+    const focusable = modalRef.current?.querySelectorAll('a[href],button:not([disabled]),textarea, input, select, [tabindex]:not([tabindex="-1"])');
+    (focusable && focusable[0]) ? focusable[0].focus() : modalRef.current?.focus?.();
+
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onDecline();
+      }
+      if (e.key === 'Tab') {
+        const nodes = Array.from(modalRef.current.querySelectorAll('a[href],button:not([disabled]),textarea, input, select, [tabindex]:not([tabindex="-1"])')).filter((el) => el.offsetParent !== null);
+        if (nodes.length === 0) { e.preventDefault(); return; }
+        const idx = nodes.indexOf(document.activeElement);
+        if (e.shiftKey) {
+          if (idx === 0 || document.activeElement === modalRef.current) { nodes[nodes.length - 1].focus(); e.preventDefault(); }
+        } else {
+          if (idx === nodes.length - 1) { nodes[0].focus(); e.preventDefault(); }
+        }
+      }
+    };
+
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('keydown', onKey); previousActive.current?.focus?.(); };
+  }, [onDecline]);
 
   return (
-    <div style={s.overlay} role="dialog" aria-modal="true" aria-labelledby="consent-title">
-      <div style={s.modal}>
+    <div ref={overlayRef} style={s.overlay} role="dialog" aria-modal="true" aria-labelledby="consent-title" onClick={(e) => e.target === overlayRef.current && onDecline()}>
+      <div style={s.modal} ref={modalRef} tabIndex={-1}>
         <h2 id="consent-title" style={s.title}>💉 Data Consent</h2>
         <p style={s.body}>
           Before your vaccination records can be issued, you must understand what data is stored

@@ -6,13 +6,16 @@ const schema = z.object({
   HORIZON_URL: z.string().url(),
   SOROBAN_RPC_URL: z.string().url(),
   SOROBAN_RPC_MAX_RETRIES: z.coerce.number().int().nonnegative().default(3),
+  SOROBAN_RPC_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
   STELLAR_NETWORK_PASSPHRASE: z.string().min(1),
 
   // Contract
   VACCINATIONS_CONTRACT_ID: z.string().min(1),
 
   // Backend
-  ADMIN_SECRET_KEY: z.string().min(1),
+  ADMIN_SECRET_KEY: z.string().min(1).refine(v => v.startsWith('S'), {
+    message: 'ADMIN_SECRET_KEY must start with S',
+  }),
   SEP10_SERVER_KEY: z.string().min(1),
   JWT_SECRET: z.string().min(1),
   PORT: z.coerce.number().int().positive().default(4000),
@@ -28,20 +31,40 @@ const schema = z.object({
   SOROBAN_FEE: z.coerce.number().int().positive().default(100),
   SOROBAN_TIP: z.coerce.number().int().min(0).default(0),
 
+  // Health probe interval for cached dependency status
+  HEALTH_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(15000),
+
   // Request limits
   BODY_LIMIT: z.string().default('10kb'),
+
+  // Rate limiting (requests per IP per minute)
+  RATE_LIMIT_SEP10: z.coerce.number().int().positive().default(10),
+  RATE_LIMIT_SEP10_VERIFY: z.coerce.number().int().positive().default(10),
+  RATE_LIMIT_VERIFY: z.coerce.number().int().positive().default(60),
+  RATE_LIMIT_VERIFIER_KEY: z.coerce.number().int().positive().default(120),
 
   // Indexer
   EVENT_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(15000),
   DATABASE_PATH: z.string().default('/data/vaccichain.db'),
 });
 
-const result = schema.safeParse(process.env);
-
-if (!result.success) {
-  const missing = result.error.issues.map(i => `  ${i.path[0]}: ${i.message}`).join('\n');
-  console.error(`[config] Missing or invalid environment variables:\n${missing}`);
-  process.exit(1);
+function validateEnv(env) {
+  const result = schema.safeParse(env);
+  if (!result.success) {
+    const missing = result.error.issues.map(i => `  ${i.path[0]}: ${i.message}`).join('\n');
+    throw new Error(`[config] Missing or invalid environment variables:\n${missing}`);
+  }
+  return result.data;
 }
 
-module.exports = result.data;
+const config = (() => {
+  try {
+    return validateEnv(process.env);
+  } catch (err) {
+    console.error(err.message);
+    process.exit(1);
+  }
+})();
+
+module.exports = config;
+module.exports.validateEnv = validateEnv;
