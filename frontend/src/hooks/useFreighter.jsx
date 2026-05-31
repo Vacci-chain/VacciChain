@@ -10,24 +10,37 @@ const AuthContext = createContext(null);
 // Only persist publicKey and role — token is kept in memory only
 const STORAGE_KEY = 'vaccichain_wallet';
 
+export const CONNECTION_STEPS = {
+  IDLE: null,
+  CHECKING: 'Checking Freighter wallet…',
+  REQUESTING_KEY: 'Requesting public key…',
+  REQUESTING_CHALLENGE: 'Requesting SEP-10 challenge…',
+  SIGNING: 'Waiting for wallet signature…',
+  VERIFYING: 'Verifying signature…',
+};
+
 export function AuthProvider({ children }) {
   const toast = useToast();
   const [publicKey, setPublicKey] = useState(null);
   const [role, setRole] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [connectionStep, setConnectionStep] = useState(CONNECTION_STEPS.IDLE);
   const [error, setError] = useState(null);
   const [freighterInstalled, setFreighterInstalled] = useState(() => typeof window !== 'undefined' && !!window.freighter);
   // Token lives only in memory — never written to localStorage
   const tokenRef = useRef(null);
 
-  const runSep10 = useCallback(async (pk) => {
+  const runSep10 = useCallback(async (pk, onStep) => {
+    onStep?.(CONNECTION_STEPS.REQUESTING_CHALLENGE);
     const challengeRes = await fetch('/v1/auth/sep10', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ public_key: pk }),
     });
     const { transaction, nonce } = await challengeRes.json();
+    onStep?.(CONNECTION_STEPS.SIGNING);
     const signedXDR = await signTransaction(transaction, { network: 'TESTNET' });
+    onStep?.(CONNECTION_STEPS.VERIFYING);
     const verifyRes = await fetch('/v1/auth/verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -39,16 +52,19 @@ export function AuthProvider({ children }) {
   }, []);
 
   const connect = useCallback(async () => {
+    if (loading) return; // prevent duplicate attempts
     setLoading(true);
     setError(null);
+    setConnectionStep(CONNECTION_STEPS.CHECKING);
     try {
       const connected = await isConnected();
       if (!connected) {
         setFreighterInstalled(false);
         throw new Error('Freighter wallet not found. Please install it.');
       }
+      setConnectionStep(CONNECTION_STEPS.REQUESTING_KEY);
       const pk = await getPublicKey();
-      const data = await runSep10(pk);
+      const data = await runSep10(pk, setConnectionStep);
       setPublicKey(pk);
       tokenRef.current = data.token;
       setRole(data.role);
@@ -63,8 +79,9 @@ export function AuthProvider({ children }) {
       throw e;
     } finally {
       setLoading(false);
+      setConnectionStep(CONNECTION_STEPS.IDLE);
     }
-  }, [runSep10, toast]);
+  }, [loading, runSep10, toast]);
 
   const disconnect = useCallback(() => {
     setPublicKey(null);
@@ -130,6 +147,7 @@ export function AuthProvider({ children }) {
       apiFetch,
       isConnected: isConnectedState,
       loading,
+      connectionStep,
       error,
     }}>
       {children}

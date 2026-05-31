@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import DarkModeToggle from './DarkModeToggle';
 import Tooltip from './Tooltip';
+import WalletConnectionProgress from './WalletConnectionProgress';
 import { useAuth } from '../hooks/useFreighter';
 
 const NAV_LINKS = [
@@ -19,7 +20,7 @@ function truncate(addr) {
 }
 
 function WalletIndicator() {
-  const { publicKey, connect, disconnect } = useAuth();
+  const { publicKey, connect, disconnect, loading, connectionStep, error } = useAuth();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const ref = useRef(null);
@@ -34,22 +35,29 @@ function WalletIndicator() {
 
   if (!publicKey) {
     return (
-      <button
-        onClick={connect}
-        style={{
-          padding: '0.6rem 1rem',
-          background: 'var(--btn-primary)',
-          color: '#fff',
-          border: 'none',
-          borderRadius: 6,
-          fontSize: '0.85rem',
-          cursor: 'pointer',
-          minHeight: '44px',
-          minWidth: '44px',
-        }}
-      >
-        Connect Wallet
-      </button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', alignItems: 'flex-end' }}>
+        <button
+          onClick={connect}
+          disabled={loading}
+          aria-busy={loading}
+          style={{
+            padding: '0.6rem 1rem',
+            background: 'var(--btn-primary)',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 6,
+            fontSize: '0.85rem',
+            cursor: loading ? 'not-allowed' : 'pointer',
+            opacity: loading ? 0.7 : 1,
+            minHeight: '44px',
+            minWidth: '44px',
+          }}
+        >
+          {loading ? 'Connecting…' : 'Connect Wallet'}
+        </button>
+        {loading && <WalletConnectionProgress step={connectionStep} />}
+        {!loading && error && <WalletConnectionProgress error={error} />}
+      </div>
     );
   }
 
