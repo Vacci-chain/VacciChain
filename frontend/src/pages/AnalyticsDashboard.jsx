@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../hooks/useFreighter';
+import EmptyState from '../components/EmptyState';
 import Tooltip from '../components/Tooltip';
 
 const ANALYTICS_BASE = import.meta.env.VITE_ANALYTICS_URL || 'http://localhost:8001';
@@ -38,7 +39,15 @@ const s = {
 };
 
 function BarChart({ data }) {
-  if (!data || data.length === 0) return <p style={s.noData}>No data available.</p>;
+  if (!data || data.length === 0) {
+    return (
+      <EmptyState
+        icon="📊"
+        heading="No Vaccination Data"
+        message="No vaccination records have been issued yet. Data will appear here once vaccinations are recorded."
+      />
+    );
+  }
   const max = Math.max(...data.map((d) => d.count), 1);
   return (
     <div style={s.barWrap} role="list" aria-label="Vaccination rates by vaccine type">
@@ -60,7 +69,15 @@ function BarChart({ data }) {
 }
 
 function IssuerTable({ data }) {
-  if (!data || data.length === 0) return <p style={s.noData}>No issuer activity recorded.</p>;
+  if (!data || data.length === 0) {
+    return (
+      <EmptyState
+        icon="🏥"
+        heading="No Issuer Activity"
+        message="No issuer activity has been recorded yet. Issuer statistics will appear here once vaccinations are issued."
+      />
+    );
+  }
   return (
     <table style={s.table} aria-label="Issuer activity">
       <thead>
@@ -86,7 +103,15 @@ function IssuerTable({ data }) {
 }
 
 function AnomalyList({ data }) {
-  if (!data || data.length === 0) return <p style={{ ...s.noData, color: 'var(--color-success)' }}>✅ No anomalies detected.</p>;
+  if (!data || data.length === 0) {
+    return (
+      <EmptyState
+        icon="✅"
+        heading="No Anomalies Detected"
+        message="All issuer activity appears normal. Anomalies will be flagged here if unusual patterns are detected."
+      />
+    );
+  }
   return (
     <table style={s.table} aria-label="Anomaly flags">
       <thead>

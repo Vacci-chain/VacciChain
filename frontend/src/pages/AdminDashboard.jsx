@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../hooks/useFreighter';
 import { useToast } from '../hooks/useToast';
 import ConfirmationModal from '../components/ConfirmationModal';
+import EmptyState from '../components/EmptyState';
 import Tooltip from '../components/Tooltip';
 
 const s = {
@@ -181,7 +182,13 @@ export default function AdminDashboard() {
       )}
 
       {keys.length === 0 ? (
-        <p style={{ color: 'var(--text-muted)' }}>No API keys yet.</p>
+        <EmptyState
+          icon="🔑"
+          heading="No API Keys"
+          message="You haven't created any API keys yet. Create your first API key to start integrating with the VacciChain API."
+          ctaText="Create First Key"
+          ctaAction={() => document.querySelector('input[aria-label="API key label"]')?.focus()}
+        />
       ) : (
         <table style={s.table} aria-label="API keys">
           <thead>
@@ -221,7 +228,11 @@ export default function AdminDashboard() {
         <h3 style={s.h3}>Issuer Onboarding Applications</h3>
         {reviewError && <p style={{ color: 'var(--color-error)', marginBottom: '0.75rem' }}>{reviewError}</p>}
         {applications.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)' }}>No applications yet.</p>
+          <EmptyState
+            icon="📋"
+            heading="No Applications"
+            message="There are no issuer onboarding applications to review at this time. New applications will appear here when submitted."
+          />
         ) : (
           <table style={s.table} aria-label="Issuer applications">
             <thead>

@@ -93,15 +93,17 @@ export default function PatientDashboard() {
           <button style={styles.btn} onClick={() => load(page)}>Retry</button>
         </div>
       )}
-      {!loading && !error && total === 0 && (
-        <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--text-muted)' }}>
-          <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>💉</p>
-          <p>No vaccination records found for this wallet.</p>
-          <p style={{ color: '#f87171', marginBottom: '0.75rem' }}>⚠️ {error}</p>
-          <button style={styles.btn} onClick={refetch}>Retry</button>
-        </div>
+      {!loading && !error && records.length === 0 && (
+        <EmptyState
+          icon="💉"
+          heading="No Vaccination Records"
+          message="You don't have any vaccination records yet. Contact your healthcare provider to get your vaccinations recorded on the blockchain."
+          ctaText="Learn More"
+          ctaHref="https://docs.vaccichain.org/patient-guide"
+          secondaryCtaText="Refresh"
+          secondaryCtaAction={refetch}
+        />
       )}
-      {!loading && !error && records.length === 0 && <EmptyState />}
 
       {records.map((r) => (
         <NFTCard
