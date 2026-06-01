@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import VerificationBadge from '../components/VerificationBadge';
 import NFTCard from '../components/NFTCard';
 import CopyButton from '../components/CopyButton';
+import EmptyState from '../components/EmptyState';
 import { useToast } from '../hooks/useToast';
 import FeedbackButton from '../components/FeedbackButton';
 
@@ -89,7 +90,21 @@ export default function VerifyPage() {
             <CopyButton text={wallet} label="wallet address" />
           </p>
           <div style={{ marginTop: '1rem' }}>
-            {result.records?.map((r) => <NFTCard key={r.token_id} record={r} />)}
+            {result.records && result.records.length > 0 ? (
+              result.records.map((r) => <NFTCard key={r.token_id} record={r} />)
+            ) : (
+              <EmptyState
+                icon="🔍"
+                heading="No Records Found"
+                message="This wallet address has no vaccination records. The wallet may not be registered or no vaccinations have been issued yet."
+                ctaText="Try Another Address"
+                ctaAction={() => {
+                  setWallet('');
+                  setResult(null);
+                  document.getElementById('wallet-input')?.focus();
+                }}
+              />
+            )}
           </div>
         </div>
       )}
