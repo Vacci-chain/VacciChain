@@ -2,64 +2,160 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const StellarSdk = require('@stellar/stellar-sdk');
 const { buildChallenge, verifyChallenge } = require('../stellar/sep10');
+const { sep10Limiter, sep10VerifyLimiter } = require('../middleware/rateLimiter');
+const { audit } = require('../middleware/auditLog');
+const validate = require('../middleware/validate');
+const { bruteForceGuard, recordFailure, recordSuccess } = require('../middleware/bruteForce');
+const { getSigningKey } = require('../jwtKeys');
+const { sep10Schema, verifySchema } = require('./schemas/auth.schemas');
 
 const router = express.Router();
 
-// Pending challenges: nonce → { clientPublicKey, expiresAt }
-const pendingChallenges = new Map();
-
-// POST /auth/sep10 — generate challenge
-router.post('/sep10', async (req, res) => {
+/**
+ * @swagger
+ * /auth/sep10:
+ *   post:
+ *     summary: Generate a SEP-10 authentication challenge
+ *     tags:
+ *       - Auth
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - public_key
+ *             properties:
+ *               public_key:
+ *                 type: string
+ *                 description: Stellar public key (starts with G) requesting a challenge
+ *     responses:
+ *       200:
+ *         description: Challenge generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 transaction:
+ *                   type: string
+ *                   description: Unsigned SEP-10 challenge transaction (XDR)
+ *                 nonce:
+ *                   type: string
+ *                   description: Single-use nonce tied to this challenge
+ *       400:
+ *         description: Invalid Stellar public key format
+ *       429:
+ *         description: Rate limit exceeded (max 10 requests per IP per minute)
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/sep10', sep10Limiter, validate(sep10Schema), async (req, res) => {
   const { public_key } = req.body;
-  if (!public_key) return res.status(400).json({ error: 'public_key required' });
-
-  try {
-    StellarSdk.Keypair.fromPublicKey(public_key); // validate format
-  } catch {
-    return res.status(400).json({ error: 'Invalid Stellar public key' });
-  }
 
   try {
     const { transaction, nonce } = await buildChallenge(public_key);
-    pendingChallenges.set(nonce, {
-      clientPublicKey: public_key,
-      expiresAt: Date.now() + 5 * 60 * 1000,
-    });
     res.json({ transaction, nonce });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// POST /auth/verify — verify signed challenge, issue JWT
-router.post('/verify', (req, res) => {
-  const { transaction, nonce } = req.body;
-  if (!transaction || !nonce) {
-    return res.status(400).json({ error: 'transaction and nonce required' });
-  }
+/**
+ * @swagger
+ * /auth/verify:
+ *   post:
+ *     summary: Verify a signed SEP-10 challenge and issue a JWT
+ *     description: >
+ *       The client signs the challenge transaction from POST /auth/sep10 with
+ *       their Stellar wallet and submits it here. On success a short-lived JWT
+ *       (1 hour) is returned scoped to the caller's role.
+ *     tags:
+ *       - Auth
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - transaction
+ *               - nonce
+ *             properties:
+ *               transaction:
+ *                 type: string
+ *                 description: Signed SEP-10 challenge transaction (XDR)
+ *               nonce:
+ *                 type: string
+ *                 description: Nonce returned by POST /auth/sep10 (must match)
+ *     responses:
+ *       200:
+ *         description: Authentication successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *                   description: JWT (expires in 1 hour)
+ *                 wallet:
+ *                   type: string
+ *                   description: Authenticated Stellar public key
+ *                 role:
+ *                   type: string
+ *                   enum: [admin, patient]
+ *                   description: Role derived from the authenticated key
+ *       400:
+ *         description: Missing or malformed parameters
+ *       401:
+ *         description: Invalid signature or nonce mismatch
+ *       429:
+ *         description: Rate limit exceeded (max 10 requests per IP per minute)
+ */
+const { isAuthorizedIssuer } = require('../middleware/issuer');
 
-  const pending = pendingChallenges.get(nonce);
-  if (!pending || Date.now() > pending.expiresAt) {
-    pendingChallenges.delete(nonce);
-    return res.status(400).json({ error: 'Challenge expired or not found' });
-  }
+router.post('/verify', sep10VerifyLimiter, validate(verifySchema), bruteForceGuard, async (req, res) => {
+  const { transaction, signed_tx, nonce } = req.body;
+  const tx = transaction || signed_tx;
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
 
   try {
-    const publicKey = verifyChallenge(transaction, nonce);
-    pendingChallenges.delete(nonce);
-
-    // Determine role: check if this key is the admin or a known issuer
-    // In production, query the contract; here we use env-based admin check
-    const role = publicKey === process.env.ADMIN_PUBLIC_KEY ? 'issuer' : 'patient';
+    const publicKey = verifyChallenge(tx, nonce);
+    const isIssuer = await isAuthorizedIssuer(publicKey);
+    const role = isIssuer ? 'issuer' : 'patient';
+    const now = Math.floor(Date.now() / 1000);
+    const signingKey = getSigningKey();
 
     const token = jwt.sign(
-      { publicKey, role },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
+      {
+        sub: publicKey,
+        iss: process.env.HOME_DOMAIN || 'localhost',
+        iat: now,
+        wallet: publicKey,
+        publicKey,
+        role,
+      },
+      signingKey.secret,
+      { expiresIn: '1h', keyid: signingKey.kid }
     );
 
-    res.json({ token, publicKey, role });
+    audit({ actor: publicKey, action: 'auth.login', result: 'success', meta: { role } });
+
+    res.json({ token, wallet: publicKey, role });
   } catch (err) {
+    // Attempt to extract wallet from the transaction for per-wallet tracking
+    let wallet = null;
+    try {
+      const txObj = StellarSdk.TransactionBuilder.fromXDR(transaction, process.env.STELLAR_NETWORK_PASSPHRASE || 'Test SDF Network ; September 2015');
+      wallet = txObj.source;
+    } catch (_) { /* ignore parse errors */ }
+
+    recordFailure(`ip:${ip}`, { ip, wallet });
+    if (wallet) recordFailure(`wallet:${wallet}`, { ip, wallet });
+
+    audit({ actor: wallet || 'unknown', action: 'auth.login', result: 'failure', meta: { error: err.message } });
     res.status(401).json({ error: err.message });
   }
 });

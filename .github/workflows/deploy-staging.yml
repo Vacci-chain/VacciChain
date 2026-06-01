@@ -1,0 +1,103 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy-staging:
+    name: Deploy to staging environment
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://staging.vaccichain.example.com
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_STAGING }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/vaccichain-backend:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/vaccichain-backend:staging-latest
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/vaccichain-frontend:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/vaccichain-frontend:staging-latest
+
+      - name: Build and push python-service image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./python-service
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/vaccichain-python:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/vaccichain-python:staging-latest
+
+      - name: Update ECS task definition — backend
+        id: task-def-backend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: staging/task-definition-backend.json
+          container-name: backend
+          image: ${{ steps.login-ecr.outputs.registry }}/vaccichain-backend:${{ github.sha }}
+
+      - name: Update ECS task definition — frontend
+        id: task-def-frontend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def-backend.outputs.task-definition }}
+          container-name: frontend
+          image: ${{ steps.login-ecr.outputs.registry }}/vaccichain-frontend:${{ github.sha }}
+
+      - name: Update ECS task definition — python-service
+        id: task-def-final
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def-frontend.outputs.task-definition }}
+          container-name: python-service
+          image: ${{ steps.login-ecr.outputs.registry }}/vaccichain-python:${{ github.sha }}
+
+      - name: Deploy to ECS and wait for stability
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def-final.outputs.task-definition }}
+          service: vaccichain-staging
+          cluster: vaccichain-staging
+          wait-for-service-stability: true
+
+      - name: Post deployment summary
+        run: |
+          echo "### Staging Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployed by:** \`${{ github.actor }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL:** https://staging.vaccichain.example.com" >> $GITHUB_STEP_SUMMARY
+          echo "- **Timestamp:** $(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_STEP_SUMMARY
+
+      - name: Alert on deployment failure
+        if: failure()
+        run: |
+          curl -sf -X POST "${{ secrets.ALERT_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "text": "🚨 Staging deployment failed for commit `${{ github.sha }}` by `${{ github.actor }}`. See: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }'

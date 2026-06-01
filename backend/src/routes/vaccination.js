@@ -2,59 +2,300 @@ const express = require('express');
 const StellarSdk = require('@stellar/stellar-sdk');
 const authMiddleware = require('../middleware/auth');
 const issuerMiddleware = require('../middleware/issuer');
-const { invokeContract, simulateContract } = require('../stellar/soroban');
+const { validateStellarPublicKey } = require('../middleware/wallet');
+const { invokeContract, simulateContract, mintVaccination, sendRpcTimeout, SorobanTimeoutError, checkDuplicateRecord } = require('../stellar/soroban');
+const { resolveContractErrorMessage, mapContractError } = require('../stellar/contractErrors');
+const { audit } = require('../middleware/auditLog');
+const validate = require('../middleware/validate');
+const { hasConsented } = require('../indexer/db');
+const { issueSchema, revokeSchema } = require('./schemas/vaccination.schemas');
 
 const router = express.Router();
 
+/**
+ * @swagger
+ * /vaccination/issue:
+ *   post:
+ *     summary: Issue a vaccination NFT (issuer only)
+ *     tags:
+ *       - Vaccination
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               patient_address:
+ *                 type: string
+ *                 description: Stellar address of patient
+ *               vaccine_name:
+ *                 type: string
+ *               date_administered:
+ *                 type: string
+ *                 format: date-time
+ *             required:
+ *               - patient_address
+ *               - vaccine_name
+ *               - date_administered
+ *     responses:
+ *       200:
+ *         description: Vaccination NFT issued successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 tokenId:
+ *                   type: string
+ *                 transactionHash:
+ *                   type: string
+ *                 ledger:
+ *                   type: number
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - issuer role required
+ *       409:
+ *         description: Duplicate record
+ *       500:
+ *         description: Contract invocation failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // POST /vaccination/issue — mint NFT (issuer only)
-router.post('/issue', authMiddleware, issuerMiddleware, async (req, res) => {
-  const { patient_address, vaccine_name, date_administered } = req.body;
+router.post(
+  '/issue',
+  authMiddleware,
+  issuerMiddleware,
+  validateStellarPublicKey('body', 'patient_address'),
+  validate(issueSchema),
+  async (req, res) => {
+  const { patient_address, vaccine_name, date_administered, dose_number, dose_series } = req.body;
 
-  if (!patient_address || !vaccine_name || !date_administered) {
-    return res.status(400).json({ error: 'patient_address, vaccine_name, date_administered required' });
+  // Enforce patient consent unless jurisdiction config waives it
+  if (process.env.REQUIRE_PATIENT_CONSENT !== 'false' && !hasConsented(patient_address)) {
+    return res.status(403).json({ error: 'Patient has not provided consent. They must consent before a record can be issued.' });
   }
 
+  // Check for duplicate record before invoking contract
   try {
-    StellarSdk.Keypair.fromPublicKey(patient_address);
-  } catch {
-    return res.status(400).json({ error: 'Invalid patient_address' });
-  }
-
-  try {
-    const args = [
-      StellarSdk.Address.fromString(patient_address).toScVal(),
-      StellarSdk.xdr.ScVal.scvString(vaccine_name),
-      StellarSdk.xdr.ScVal.scvString(date_administered),
-      StellarSdk.Address.fromString(req.user.publicKey).toScVal(),
-    ];
-
-    const result = await invokeContract(process.env.ISSUER_SECRET_KEY, 'mint_vaccination', args);
-    const tokenId = StellarSdk.scValToNative(result);
-
-    res.json({ success: true, token_id: tokenId });
+    const existingTokenId = await checkDuplicateRecord(patient_address, vaccine_name, date_administered);
+    if (existingTokenId) {
+      audit({
+        actor: req.user.publicKey,
+        action: 'vaccination.issue',
+        target: patient_address,
+        result: 'failure',
+        meta: { error: 'Duplicate record', existing_token_id: existingTokenId },
+      });
+      return res.status(409).json({
+        error: 'Duplicate record',
+        existing_token_id: existingTokenId,
+      });
+    }
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    // If duplicate check fails, continue to contract invocation
+    // The contract will also check for duplicates
+  }
+
+  try {
+    const result = await mintVaccination(
+      patient_address,
+      vaccine_name,
+      date_administered,
+      process.env.ISSUER_SECRET_KEY,
+      { doseNumber: dose_number, doseSeries: dose_series }
+    );
+    const timestamp = new Date().toISOString();
+
+    audit({
+      actor: req.user.publicKey,
+      action: 'vaccination.issue',
+      target: patient_address,
+      result: 'success',
+      meta: { token_id: result.tokenId, vaccine_name, date_administered, dose_number, dose_series },
+    });
+    // Invalidate verification cache for this wallet
+    const verifyRouter = require('../routes/verify');
+    if (verifyRouter.verifyCache) {
+      verifyRouter.verifyCache.delete(patient_address);
+    }
+
+    res.json({
+      success: true,
+      tokenId: result.tokenId,
+      transactionHash: result.hash,
+      ledger: result.ledger,
+      timestamp,
+    });
+  } catch (err) {
+    if (err instanceof SorobanTimeoutError) return sendRpcTimeout(res);
+    const errorMessage = resolveContractErrorMessage(err);
+    audit({
+      actor: req.user.publicKey,
+      action: 'vaccination.issue',
+      target: patient_address,
+      result: 'failure',
+      meta: { error: errorMessage },
+    });
+    const mapped = mapContractError(err);
+    if (mapped?.name === 'DuplicateRecord') {
+      return res.status(409).json({ error: errorMessage });
+    }
+    res.status(500).json({ error: errorMessage });
   }
 });
 
-// GET /vaccination/:wallet — fetch all records for a wallet
-router.get('/:wallet', authMiddleware, async (req, res) => {
-  const { wallet } = req.params;
+/**
+ * @swagger
+ * /vaccination/revoke:
+ *   post:
+ *     summary: Revoke a vaccination record (issuer only)
+ *     tags:
+ *       - Vaccination
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               token_id:
+ *                 type: string
+ *                 description: Token ID to revoke
+ *             required:
+ *               - token_id
+ *     responses:
+ *       200:
+ *         description: Vaccination record revoked
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 token_id:
+ *                   type: string
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - issuer role required
+ *       500:
+ *         description: Contract invocation failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+// POST /vaccination/revoke — revoke a vaccination record (issuer or admin only)
+router.post(
+  '/revoke',
+  authMiddleware,
+  issuerMiddleware,
+  validate(revokeSchema),
+  async (req, res) => {
+    const { token_id } = req.body;
 
-  try {
-    StellarSdk.Keypair.fromPublicKey(wallet);
-  } catch {
-    return res.status(400).json({ error: 'Invalid wallet address' });
+    try {
+      const args = [
+        StellarSdk.xdr.ScVal.scvU64(StellarSdk.xdr.Uint64.fromString(String(token_id))),
+        StellarSdk.Address.fromString(req.user.publicKey).toScVal(),
+      ];
+
+      await invokeContract(process.env.ISSUER_SECRET_KEY, 'revoke_vaccination', args);
+
+      audit({
+        actor: req.user.publicKey,
+        action: 'vaccination.revoke',
+        target: String(token_id),
+        result: 'success',
+        meta: { token_id },
+      });
+
+      res.json({ success: true, token_id });
+    } catch (err) {
+      if (err instanceof SorobanTimeoutError) return sendRpcTimeout(res);
+      const errorMessage = resolveContractErrorMessage(err);
+      audit({
+        actor: req.user.publicKey,
+        action: 'vaccination.revoke',
+        target: String(token_id),
+        result: 'failure',
+        meta: { token_id, error: errorMessage },
+      });
+      res.status(500).json({ error: errorMessage });
+    }
   }
+);
+
+/**
+ * @swagger
+ * /vaccination/{wallet}:
+ *   get:
+ *     summary: Fetch all vaccination records for a wallet
+ *     tags:
+ *       - Vaccination
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: wallet
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Stellar wallet address
+ *     responses:
+ *       200:
+ *         description: Vaccination records retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 wallet:
+ *                   type: string
+ *                 vaccinated:
+ *                   type: boolean
+ *                 records:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/VaccinationRecord'
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Contract query failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+// GET /vaccination/:wallet — fetch paginated records for a wallet
+router.get('/:wallet', authMiddleware, validateStellarPublicKey('params', 'wallet'), async (req, res) => {
+  const { wallet } = req.params;
 
   try {
     const args = [StellarSdk.Address.fromString(wallet).toScVal()];
     const result = await simulateContract('verify_vaccination', args);
-    const [vaccinated, records] = StellarSdk.scValToNative(result);
-
-    res.json({ wallet, vaccinated, records });
+    const [, allRecords] = StellarSdk.scValToNative(result);
+    const records = Array.isArray(allRecords) ? allRecords : [];
+    res.json({ wallet, records });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    if (err instanceof SorobanTimeoutError) return sendRpcTimeout(res);
+    const errorMessage = resolveContractErrorMessage(err);
+    res.status(500).json({ error: errorMessage });
   }
 });
 

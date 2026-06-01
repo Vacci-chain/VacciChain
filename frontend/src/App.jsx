@@ -1,26 +1,40 @@
-import { Routes, Route, Link } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import Landing from './pages/Landing';
 import PatientDashboard from './pages/PatientDashboard';
 import IssuerDashboard from './pages/IssuerDashboard';
 import VerifyPage from './pages/VerifyPage';
+import AdminDashboard from './pages/AdminDashboard';
+import IssuerOnboarding from './pages/IssuerOnboarding';
+import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import { AuthProvider } from './hooks/useFreighter';
+import { useDarkMode } from './hooks/useDarkMode';
+import FreighterBanner from './components/FreighterBanner';
+import DemoBanner from './components/DemoBanner';
+import NavBar from './components/NavBar';
+import SkipToContent from './components/SkipToContent';
 
 export default function App() {
+  const [dark, setDark] = useDarkMode();
+
   return (
     <AuthProvider>
-      <nav style={{ padding: '1rem 2rem', background: '#1e293b', display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
-        <strong style={{ color: '#38bdf8', fontSize: '1.2rem' }}>💉 VacciChain</strong>
-        <Link to="/">Home</Link>
-        <Link to="/patient">My Records</Link>
-        <Link to="/issuer">Issue</Link>
-        <Link to="/verify">Verify</Link>
-      </nav>
-      <Routes>
-        <Route path="/" element={<Landing />} />
-        <Route path="/patient" element={<PatientDashboard />} />
-        <Route path="/issuer" element={<IssuerDashboard />} />
-        <Route path="/verify" element={<VerifyPage />} />
-      </Routes>
+      <DemoBanner />
+      <NavBar dark={dark} onToggleDark={() => setDark((d) => !d)} />
+      <SkipToContent />
+      <DemoBanner/>
+      <NavBar dark={dark} onToggleDark={() => setDark(d => !d)} />
+      <FreighterBanner />
+      <main id="main-content" tabIndex={-1} style={{ outline: 'none' }}>
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="/patient" element={<PatientDashboard />} />
+          <Route path="/issuer" element={<IssuerDashboard />} />
+          <Route path="/verify" element={<VerifyPage />} />
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/apply" element={<IssuerOnboarding />} />
+          <Route path="/analytics" element={<AnalyticsDashboard />} />
+        </Routes>
+      </main>
     </AuthProvider>
   );
 }

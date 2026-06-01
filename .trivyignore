@@ -1,0 +1,9 @@
+# Trivy ignore file for VacciChain Docker image scans.
+# Add any CVEs here that are confirmed false positives or not applicable.
+# Example:
+# CVE-2024-12345
+
+# Use a comment line for notes:
+# - The following entries were assessed and accepted as non-actionable for this repo.
+
+# TODO: add suppressions only after review.

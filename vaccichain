@@ -1,0 +1,49 @@
+#297 [DOCS] Create architecture diagram
+Repo Avatar
+dev-fatima-24/VacciChain
+Priority: medium
+
+Description
+There is no visual architecture diagram showing how the frontend, backend, Python service, Soroban contract, and Stellar network interact. A diagram helps new contributors understand the system quickly.
+
+Acceptance Criteria
+Diagram shows all services and their communication paths
+Diagram includes the Stellar network and Soroban contract as external components
+Data flow for the core vaccination issuance and verification flows is shown
+Diagram is stored as both a source file (e.g., Mermaid or draw.io) and a rendered PNG
+Diagram is referenced from the README
+
+.......................................................................................................................
+
+#295 [DOCS] Write comprehensive README setup guide
+Repo Avatar
+dev-fatima-24/VacciChain
+Priority: high
+
+Description
+The current README setup section is incomplete and missing steps for common environments. A complete setup guide should take a developer from zero to a running local stack without needing to ask questions.
+
+Acceptance Criteria
+Prerequisites section lists all required tools with version requirements
+Step-by-step instructions cover clone, env setup, contract deploy, and all services
+Instructions are verified on macOS, Linux, and Windows (WSL2)
+Common setup errors are documented with solutions
+Setup guide is tested by a developer unfamiliar with the project
+
+..............................................................................................................................................
+
+#296 [DOCS] Write full API reference documentation
+Repo Avatar
+dev-fatima-24/VacciChain
+Priority: high
+
+Description
+The README contains a brief API table but lacks request/response schemas, example payloads, error codes, and authentication details needed by integrators.
+
+Acceptance Criteria
+Every endpoint has a dedicated section with method, path, auth requirement, and description
+Request body schema is documented with field types and constraints
+Example request and response payloads are provided for each endpoint
+All possible error codes and their meanings are listed
+Documentation is kept in docs/api-reference.md
+
