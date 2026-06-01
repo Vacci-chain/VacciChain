@@ -4,6 +4,7 @@ import VerificationBadge from '../components/VerificationBadge';
 import NFTCard from '../components/NFTCard';
 import CopyButton from '../components/CopyButton';
 import { useToast } from '../hooks/useToast';
+import FeedbackButton from '../components/FeedbackButton';
 
 const styles = {
   page: { maxWidth: 600, margin: '2rem auto', padding: '0 1rem' },
@@ -16,25 +17,21 @@ export default function VerifyPage() {
   const toast = useToast();
   const [wallet, setWallet] = useState('');
   const [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const verify = async (address) => {
-    setLoading(true);
     setResult(null);
     setError(null);
-    try {
-      const res = await fetch(`/v1/verify/${address.trim()}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setResult(data);
-      toast('Verification successful', 'success');
-    } catch (e) {
-      setError(e.message || 'Verification failed.');
-      toast(e.message || 'Verification failed.', 'error');
-    } finally {
-      setLoading(false);
+    const res = await fetch(`/v1/verify/${address.trim()}`);
+    const data = await res.json();
+    if (!res.ok) {
+      const msg = data.error || 'Verification failed.';
+      setError(msg);
+      toast(msg, 'error');
+      throw new Error(msg);
     }
+    setResult(data);
+    toast('Verification successful', 'success');
   };
 
   useEffect(() => {
@@ -46,19 +43,10 @@ export default function VerifyPage() {
     }
   }, []);
 
-  const handleVerify = (e) => {
-    e.preventDefault();
-    const trimmed = wallet.trim();
-    const url = new URL(window.location);
-    url.searchParams.set('wallet', trimmed);
-    window.history.pushState({}, '', url);
-    verify(trimmed);
-  };
-
   return (
     <div style={styles.page}>
       <h2 style={{ marginBottom: '1.5rem', color: 'var(--text)' }}>Verify Vaccination Status</h2>
-      <form onSubmit={handleVerify}>
+      <form onSubmit={(e) => e.preventDefault()}>
         <label htmlFor="wallet-input" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}>
           Stellar wallet address
         </label>
@@ -71,9 +59,22 @@ export default function VerifyPage() {
           aria-label="Stellar wallet address to verify"
           required
         />
-        <button style={styles.btn} type="submit" disabled={loading} aria-disabled={loading}>
-          {loading ? 'Checking…' : 'Verify'}
-        </button>
+        <FeedbackButton
+          style={styles.btn}
+          onClick={() => {
+            const trimmed = wallet.trim();
+            const url = new URL(window.location);
+            url.searchParams.set('wallet', trimmed);
+            window.history.pushState({}, '', url);
+            return verify(trimmed);
+          }}
+          loadingLabel="⏳ Checking…"
+          successLabel="✅ Verified"
+          errorLabel="❌ Failed"
+          aria-label="Verify wallet vaccination status"
+        >
+          Verify
+        </FeedbackButton>
       </form>
 
       <div aria-live="polite" aria-atomic="true">

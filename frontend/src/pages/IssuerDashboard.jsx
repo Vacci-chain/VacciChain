@@ -6,6 +6,7 @@ import { useToast } from '../hooks/useToast';
 import ConfirmMintDialog from '../components/ConfirmMintDialog';
 import CopyButton from '../components/CopyButton';
 import RoleBadge from '../components/RoleBadge';
+import FeedbackButton from '../components/FeedbackButton';
 
 const styles = {
   page: { maxWidth: 500, width: '100%', margin: '2rem auto', padding: '0 1rem', boxSizing: 'border-box' },
@@ -95,8 +96,7 @@ export default function IssuerDashboard() {
     );
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     const result = await issueVaccination(form);
     if (result) {
       setMintResult(result);
@@ -105,6 +105,7 @@ export default function IssuerDashboard() {
       toast('Vaccination NFT issued successfully!', 'success');
     } else {
       toast('Failed to issue vaccination NFT. Please try again.', 'error');
+      throw new Error('Issue failed');
     }
   };
 
@@ -116,7 +117,7 @@ export default function IssuerDashboard() {
           <RoleBadge role="issuer" />
         </div>
       </div>
-      <form style={styles.form} onSubmit={handleSubmit} role="form">
+      <form style={styles.form} onSubmit={(e) => e.preventDefault()} role="form">
         {[
           { key: 'patient_address', label: 'Patient Stellar Address', placeholder: 'G...' },
           { key: 'vaccine_name', label: 'Vaccine Name', placeholder: 'e.g. COVID-19' },
@@ -135,9 +136,17 @@ export default function IssuerDashboard() {
             {errors[key] && <p style={styles.fieldError}>{errors[key]}</p>}
           </div>
         ))}
-        <button style={isAuthorized ? styles.btn : styles.btnDisabled} type="submit" disabled={loading || !isAuthorized} aria-disabled={loading || !isAuthorized}>
-          {loading ? 'Minting…' : 'Issue Vaccination NFT'}
-        </button>
+        <FeedbackButton
+          style={isAuthorized ? styles.btn : styles.btnDisabled}
+          onClick={handleSubmit}
+          disabled={!isAuthorized || !isValid}
+          loadingLabel="⏳ Minting…"
+          successLabel="✅ Issued!"
+          errorLabel="❌ Failed"
+          aria-label="Issue Vaccination NFT"
+        >
+          Issue Vaccination NFT
+        </FeedbackButton>
       </form>
       <div aria-live="polite" aria-atomic="true">
         {mintResult && (

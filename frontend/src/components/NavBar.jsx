@@ -4,6 +4,7 @@ import DarkModeToggle from './DarkModeToggle';
 import Tooltip from './Tooltip';
 import WalletConnectionProgress from './WalletConnectionProgress';
 import { useAuth } from '../hooks/useFreighter';
+import FeedbackButton from './FeedbackButton';
 
 const NAV_LINKS = [
   { to: '/', label: 'Home' },
@@ -36,10 +37,11 @@ function WalletIndicator() {
   if (!publicKey) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', alignItems: 'flex-end' }}>
-        <button
+        <FeedbackButton
           onClick={connect}
-          disabled={loading}
-          aria-busy={loading}
+          loadingLabel="⏳ Connecting…"
+          successLabel="✅ Connected"
+          errorLabel="❌ Failed"
           style={{
             padding: '0.6rem 1rem',
             background: 'var(--btn-primary)',
@@ -47,14 +49,13 @@ function WalletIndicator() {
             border: 'none',
             borderRadius: 6,
             fontSize: '0.85rem',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            opacity: loading ? 0.7 : 1,
+            cursor: 'pointer',
             minHeight: '44px',
-            minWidth: '44px',
+            minWidth: '10rem',
           }}
         >
-          {loading ? 'Connecting…' : 'Connect Wallet'}
-        </button>
+          Connect Wallet
+        </FeedbackButton>
         {loading && <WalletConnectionProgress step={connectionStep} />}
         {!loading && error && <WalletConnectionProgress error={error} />}
       </div>
