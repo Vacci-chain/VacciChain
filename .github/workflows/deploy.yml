@@ -91,14 +91,9 @@ jobs:
         env:
           ADMIN_SECRET_KEY: ${{ secrets.TESTNET_ADMIN_SECRET_KEY }}
           ADMIN_PUBLIC_KEY: ${{ secrets.TESTNET_ADMIN_PUBLIC_KEY }}
-          CONTRACT_ID: ${{ steps.deploy.outputs.contract_id }}
-        run: |
-          stellar contract invoke \
-            --id "$CONTRACT_ID" \
-            --source "$ADMIN_SECRET_KEY" \
-            --network testnet \
-            -- verify_vaccination \
-            --wallet "$ADMIN_PUBLIC_KEY"
+          VACCINATIONS_CONTRACT_ID: ${{ steps.deploy.outputs.contract_id }}
+          STELLAR_NETWORK: testnet
+        run: bash scripts/smoke-test.sh
 
       - name: Write contract ID to env config
         env:
@@ -150,14 +145,9 @@ jobs:
         env:
           ADMIN_SECRET_KEY: ${{ secrets.MAINNET_ADMIN_SECRET_KEY }}
           ADMIN_PUBLIC_KEY: ${{ secrets.MAINNET_ADMIN_PUBLIC_KEY }}
-          CONTRACT_ID: ${{ steps.deploy.outputs.contract_id }}
-        run: |
-          stellar contract invoke \
-            --id "$CONTRACT_ID" \
-            --source "$ADMIN_SECRET_KEY" \
-            --network mainnet \
-            -- verify_vaccination \
-            --wallet "$ADMIN_PUBLIC_KEY"
+          VACCINATIONS_CONTRACT_ID: ${{ steps.deploy.outputs.contract_id }}
+          STELLAR_NETWORK: mainnet
+        run: bash scripts/smoke-test.sh
 
       - name: Write contract ID to env config
         env:
