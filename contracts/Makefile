@@ -15,18 +15,14 @@ deploy:
 		--source $(ADMIN_SECRET_KEY) \
 		--network testnet))
 	@echo "CONTRACT_ID=$(CONTRACT_ID)"
-	@echo "Running post-deploy smoke test..."
-	$(eval SMOKE_RESULT := $(shell soroban contract invoke \
-		--id $(CONTRACT_ID) \
-		--source $(ADMIN_SECRET_KEY) \
-		--network testnet \
-		-- verify_vaccination \
-		--wallet $(ADMIN_PUBLIC_KEY) 2>&1))
-	@echo "Smoke test result: $(SMOKE_RESULT)"
-	@echo "$(SMOKE_RESULT)" | grep -qv "error" || (echo "ERROR: Smoke test failed — $(SMOKE_RESULT)" && exit 1)
-	@echo "Smoke test passed. Writing contract ID to ../.env..."
+	@echo "Writing contract ID to ../.env..."
 	@sed -i 's|^VACCINATIONS_CONTRACT_ID=.*|VACCINATIONS_CONTRACT_ID=$(CONTRACT_ID)|' ../.env 2>/dev/null || \
 		echo "VACCINATIONS_CONTRACT_ID=$(CONTRACT_ID)" >> ../.env
+	@echo "Running smoke test..."
+	@VACCINATIONS_CONTRACT_ID=$(CONTRACT_ID) \
+	 ADMIN_SECRET_KEY=$(ADMIN_SECRET_KEY) \
+	 ADMIN_PUBLIC_KEY=$(ADMIN_PUBLIC_KEY) \
+	 bash ../scripts/smoke-test.sh
 	@echo "Deploy complete. CONTRACT_ID=$(CONTRACT_ID)"
 
 clean:
