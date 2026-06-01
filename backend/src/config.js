@@ -46,6 +46,9 @@ const schema = z.object({
   // Indexer
   EVENT_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(15000),
   DATABASE_PATH: z.string().default('/data/vaccichain.db'),
+
+  // API versioning
+  API_VERSION: z.string().default('1'),
 });
 
 function validateEnv(env) {
