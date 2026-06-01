@@ -131,6 +131,7 @@ export default function IssuerDashboard() {
               placeholder={placeholder}
               value={form[key]}
               onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+              aria-describedby={error ? 'issuer-error' : undefined}
               required
             />
             {errors[key] && <p style={styles.fieldError}>{errors[key]}</p>}
