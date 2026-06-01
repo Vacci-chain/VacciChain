@@ -11,6 +11,7 @@ describe('Unversioned Path Redirects', () => {
 
       expect(res.headers.location).toBe('/v1/auth/sep10');
       expect(res.headers.deprecation).toBe('true');
+      expect(res.headers['api-version']).toBe('1');
     });
   });
 
@@ -103,6 +104,7 @@ describe('Unversioned Path Redirects', () => {
 
       expect(res.headers.location).toBe('/v1/admin/issuers');
       expect(res.headers.deprecation).toBe('true');
+      expect(res.headers['api-version']).toBe('1');
     });
 
     it('should redirect /patient paths', async () => {
@@ -113,6 +115,7 @@ describe('Unversioned Path Redirects', () => {
 
       expect(res.headers.location).toBe('/v1/patient/register');
       expect(res.headers.deprecation).toBe('true');
+      expect(res.headers['api-version']).toBe('1');
     });
 
     it('should redirect /events paths', async () => {
@@ -122,6 +125,7 @@ describe('Unversioned Path Redirects', () => {
 
       expect(res.headers.location).toBe('/v1/events');
       expect(res.headers.deprecation).toBe('true');
+      expect(res.headers['api-version']).toBe('1');
     });
   });
 });

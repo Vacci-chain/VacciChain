@@ -44,6 +44,8 @@ app.use(cors({
   optionsSuccessStatus: 204,
 }));
 app.use(securityHeaders);
+// Apply API version header globally to all responses
+app.use(apiVersion);
 app.use(express.json({ limit: config.BODY_LIMIT }));
 app.use(requestId);
 // Sanitize all string inputs at the API boundary (strips HTML tags, control chars, null bytes)
@@ -65,7 +67,6 @@ app.use((req, res, next) => {
 
 // v1 routes — all API endpoints are versioned under /v1/
 const v1 = express.Router();
-v1.use(apiVersion);
 v1.use('/auth', authRoutes);
 v1.use('/vaccination', vaccinationRoutes);
 v1.use('/verify', verifyRoutes);
