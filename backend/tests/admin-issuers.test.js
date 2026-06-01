@@ -1,6 +1,8 @@
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const app = require('../src/app');
+const sdk = require('@stellar/stellar-sdk');
+const { simulateContract } = require('../src/stellar/soroban');
 
 const VALID_ISSUER_ADDRESS = 'GA3AUY2XRF6S7R73ABSLJMKG4R2NQGRUFPEJUGCANMBAAXI4MTBS6AQU';
 
@@ -8,7 +10,12 @@ jest.mock('../src/stellar/soroban', () => {
   const sdk = require('@stellar/stellar-sdk');
   return {
     invokeContract: jest.fn().mockResolvedValue({ hash: 'mockhash123', ledger: 1000 }),
-    simulateContract: jest.fn().mockResolvedValue(sdk.xdr.ScVal.scvVec([])),
+    simulateContract: jest.fn().mockImplementation((method) => {
+      if (method === 'is_issuer') {
+        return Promise.resolve(sdk.xdr.ScVal.scvBool(false));
+      }
+      return Promise.resolve(sdk.xdr.ScVal.scvVec([]));
+    }),
     getRpcServer: jest.fn().mockReturnValue({ getHealth: jest.fn().mockResolvedValue({}) }),
     addIssuer: jest.fn().mockResolvedValue({ hash: 'mockhash123', ledger: 1000 }),
     revokeIssuer: jest.fn().mockResolvedValue({ hash: 'mockhash456', ledger: 1001 }),
@@ -46,10 +53,14 @@ describe('Admin Issuer Endpoints', () => {
       const res = await request(app)
         .post('/v1/admin/issuers')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ address: VALID_ISSUER_ADDRESS });
+        .send({ wallet_address: VALID_ISSUER_ADDRESS });
 
       expect(res.status).toBe(201);
-      expect(res.body).toMatchObject({ address: VALID_ISSUER_ADDRESS, authorized: true });
+      expect(res.body).toMatchObject({
+        address: VALID_ISSUER_ADDRESS,
+        wallet_address: VALID_ISSUER_ADDRESS,
+        authorized: true
+      });
       expect(res.body).toHaveProperty('hash');
     });
 
@@ -66,16 +77,27 @@ describe('Admin Issuer Endpoints', () => {
       const res = await request(app)
         .post('/v1/admin/issuers')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ address: 'not-a-stellar-address' });
+        .send({ wallet_address: 'not-a-stellar-address' });
 
       expect(res.status).toBe(400);
+    });
+
+    it('returns 409 for duplicate issuer', async () => {
+      simulateContract.mockResolvedValueOnce(sdk.xdr.ScVal.scvBool(true));
+      const res = await request(app)
+        .post('/v1/admin/issuers')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ wallet_address: VALID_ISSUER_ADDRESS });
+
+      expect(res.status).toBe(409);
+      expect(res.body).toHaveProperty('error');
     });
 
     it('rejects issuer role (admin only)', async () => {
       const res = await request(app)
         .post('/v1/admin/issuers')
         .set('Authorization', `Bearer ${issuerToken}`)
-        .send({ address: VALID_ISSUER_ADDRESS });
+        .send({ wallet_address: VALID_ISSUER_ADDRESS });
 
       expect(res.status).toBe(403);
     });
@@ -84,7 +106,7 @@ describe('Admin Issuer Endpoints', () => {
       const res = await request(app)
         .post('/v1/admin/issuers')
         .set('Authorization', `Bearer ${patientToken}`)
-        .send({ address: VALID_ISSUER_ADDRESS });
+        .send({ wallet_address: VALID_ISSUER_ADDRESS });
 
       expect(res.status).toBe(403);
     });
@@ -92,7 +114,7 @@ describe('Admin Issuer Endpoints', () => {
     it('rejects unauthenticated request', async () => {
       const res = await request(app)
         .post('/v1/admin/issuers')
-        .send({ address: VALID_ISSUER_ADDRESS });
+        .send({ wallet_address: VALID_ISSUER_ADDRESS });
 
       expect(res.status).toBe(401);
     });

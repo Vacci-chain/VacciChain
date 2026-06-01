@@ -39,7 +39,7 @@ router.post('/issuers', adminAuthMiddleware, adminOnly, validate(addIssuerSchema
     audit({ actor: req.user.wallet, action: 'admin.add_issuer', result: 'success', meta: { address } });
     res.status(201).json({ address, authorized: true, hash: result.hash });
   } catch (err) {
-    audit({ actor: req.user.wallet, action: 'admin.add_issuer', result: 'failure', meta: { address, error: err.message } });
+    audit({ actor: req.user.wallet, action: 'admin.add_issuer', result: 'failure', meta: { address: wallet_address, error: err.message } });
     res.status(500).json({ error: err.message });
   }
 });
