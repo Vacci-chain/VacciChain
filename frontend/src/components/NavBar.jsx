@@ -226,16 +226,25 @@ export default function NavBar({ dark, onToggleDark }) {
         style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap' }}
         ref={linksRef}
       >
-        {NAV_LINKS.map(({ to, label }) => (
-          <Link
-            key={to}
-            to={to}
-            aria-current={pathname === to ? 'page' : undefined}
-            onClick={close}
-          >
-            {label}
-          </Link>
-        ))}
+        {NAV_LINKS.map(({ to, label }) => {
+          const isActive = pathname === to;
+          return (
+            <Link
+              key={to}
+              to={to}
+              aria-current={isActive ? 'page' : undefined}
+              onClick={close}
+              style={isActive ? {
+                color: 'var(--accent)',
+                borderBottom: '2px solid var(--accent)',
+                paddingBottom: '2px',
+                fontWeight: 600,
+              } : undefined}
+            >
+              {label}
+            </Link>
+          );
+        })}
         <DarkModeToggle dark={dark} onToggle={onToggleDark} />
         <WalletIndicator />
       </div>
