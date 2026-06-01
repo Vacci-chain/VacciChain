@@ -64,6 +64,7 @@
     "verified": "Verified: {{count}} Record",
     "verified_other": "Verified: {{count}} Records",
     "notFound": "No Records Found",
+    "notVerified": "Not Verified",
     "revoked": "Certificate Revoked",
     "verifying": "Verifying Status..."
   },

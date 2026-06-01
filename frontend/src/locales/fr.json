@@ -64,6 +64,7 @@
     "verified": "Vérifié : {{count}} dossier",
     "verified_other": "Vérifié : {{count}} dossiers",
     "notFound": "Aucun dossier trouvé",
+    "notVerified": "Non vérifié",
     "revoked": "Certificat révoqué",
     "verifying": "Vérification en cours..."
   },
