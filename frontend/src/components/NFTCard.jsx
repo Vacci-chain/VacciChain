@@ -1,6 +1,9 @@
 export default function NFTCard({ record }) {
   return (
-    <div style={{
+    <div
+      role="article"
+      aria-label={`Vaccination record: ${record.vaccine_name}, administered ${record.date_administered}`}
+      style={{
       background: '#1e293b',
       border: '1px solid #334155',
       borderRadius: 12,

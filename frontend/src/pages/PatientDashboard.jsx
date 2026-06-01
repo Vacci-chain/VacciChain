@@ -25,7 +25,7 @@ export default function PatientDashboard() {
     return (
       <div style={styles.page}>
         <p style={{ color: '#94a3b8', marginBottom: '1rem' }}>Connect your wallet to view records.</p>
-        <button style={styles.btn} onClick={connect}>Connect Wallet</button>
+        <button style={styles.btn} onClick={connect} aria-label="Connect wallet to view vaccination records">Connect Wallet</button>
       </div>
     );
   }
@@ -36,10 +36,10 @@ export default function PatientDashboard() {
       <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
         Wallet: {publicKey}
       </p>
-      {loading && <p style={{ color: '#94a3b8' }}>Loading…</p>}
-      {error && <p style={{ color: '#f87171' }}>Error: {error}</p>}
+      {loading && <p aria-live="polite" style={{ color: '#94a3b8' }}>Loading…</p>}
+      {error && <p role="alert" style={{ color: '#f87171' }}>Error: {error}</p>}
       {!loading && records.length === 0 && (
-        <p style={{ color: '#94a3b8' }}>No vaccination records found.</p>
+        <p aria-live="polite" style={{ color: '#94a3b8' }}>No vaccination records found.</p>
       )}
       {records.map((r) => <NFTCard key={r.token_id} record={r} />)}
     </div>

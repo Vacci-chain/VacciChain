@@ -42,29 +42,32 @@ export default function IssuerDashboard() {
   return (
     <div style={styles.page}>
       <h2 style={{ marginBottom: '1.5rem', color: '#e2e8f0' }}>Issue Vaccination NFT</h2>
-      <form style={styles.form} onSubmit={handleSubmit}>
+      <form style={styles.form} onSubmit={handleSubmit} aria-label="Issue vaccination NFT">
         {[
           { key: 'patient_address', label: 'Patient Stellar Address', placeholder: 'G...' },
           { key: 'vaccine_name', label: 'Vaccine Name', placeholder: 'e.g. COVID-19' },
           { key: 'date_administered', label: 'Date Administered', placeholder: 'YYYY-MM-DD' },
         ].map(({ key, label, placeholder }) => (
           <div key={key}>
-            <p style={styles.label}>{label}</p>
+            <label htmlFor={key} style={styles.label}>{label}</label>
             <input
+              id={key}
               style={styles.input}
               placeholder={placeholder}
               value={form[key]}
               onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+              aria-describedby={error ? 'issuer-error' : undefined}
               required
             />
           </div>
         ))}
-        <button style={styles.btn} type="submit" disabled={loading}>
+        <button style={styles.btn} type="submit" disabled={loading}
+          aria-busy={loading}>
           {loading ? 'Minting…' : 'Issue Vaccination NFT'}
         </button>
       </form>
-      {error && <p style={{ color: '#f87171', marginTop: '1rem' }}>Error: {error}</p>}
-      {success && <p style={{ color: '#4ade80', marginTop: '1rem' }}>✅ {success}</p>}
+      {error && <p id="issuer-error" role="alert" style={{ color: '#f87171', marginTop: '1rem' }}>Error: {error}</p>}
+      {success && <p aria-live="polite" style={{ color: '#4ade80', marginTop: '1rem' }}>✅ {success}</p>}
     </div>
   );
 }

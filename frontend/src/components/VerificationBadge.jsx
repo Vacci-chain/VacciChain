@@ -1,6 +1,12 @@
 export default function VerificationBadge({ vaccinated, recordCount }) {
+  const label = vaccinated
+    ? `Vaccinated with ${recordCount} record${recordCount !== 1 ? 's' : ''}`
+    : 'No vaccination records found';
   return (
-    <div style={{
+    <div
+      role="status"
+      aria-label={label}
+      style={{
       display: 'inline-flex',
       alignItems: 'center',
       gap: '0.5rem',
