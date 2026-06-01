@@ -1,14 +1,11 @@
 /**
  * E2E: Public verification flow (#349)
  *
- * Acceptance criteria:
- *  1. Navigates to the Verification Page
- *  2. Enters a known vaccinated wallet → green 'Verified' badge with record details
- *  3. Enters an unvaccinated wallet → 'No Records Found' badge
- *  4. Enters an invalid wallet format → client-side error message
- *
- * Mocking strategy: Playwright route intercepts replace all /v1/verify/* calls
- * so the test is fully hermetic (no real backend needed).
+ * AC1 – navigates to the Verification Page
+ * AC2 – vaccinated wallet → green 'Verified' badge with record details
+ * AC3 – unvaccinated wallet → 'No Records Found' badge
+ * AC4 – invalid wallet format → client-side error message
+ * AC5 – (covered by AC4) invalid format never reaches the badge
  */
 import { test, expect } from '@playwright/test';
 
@@ -18,7 +15,7 @@ const INVALID_WALLET      = 'GABC123';
 
 test.describe('Public Verification Flow', () => {
   test.beforeEach(async ({ page }) => {
-    // Intercept vaccinated wallet → returns 2 records
+    // Intercept vaccinated wallet → 2 records
     await page.route(`**/v1/verify/${VACCINATED_WALLET}`, (route) =>
       route.fulfill({
         status: 200,
@@ -42,18 +39,26 @@ test.describe('Public Verification Flow', () => {
         body: JSON.stringify({ vaccinated: false, record_count: 0, records: [] }),
       })
     );
+
+    // Intercept invalid wallet → 400 (registered before any interaction)
+    await page.route(`**/v1/verify/${INVALID_WALLET}`, (route) =>
+      route.fulfill({
+        status: 400,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Invalid wallet address format' }),
+      })
+    );
   });
 
-  // AC1: navigates to the Verification Page
-  test('navigates to the Verification Page', async ({ page }) => {
+  // AC1: page loads and shows the wallet input
+  test('AC1: navigates to the Verification Page', async ({ page }) => {
     await page.goto('/verify');
     await expect(page.locator('#wallet-input')).toBeVisible();
   });
 
-  // AC2: vaccinated wallet → green 'Verified' badge with correct record details
-  test('shows Verified badge with record count for vaccinated wallet', async ({ page }) => {
+  // AC2: vaccinated wallet → Verified badge + record details
+  test('AC2: shows Verified badge with record count for vaccinated wallet', async ({ page }) => {
     await page.goto('/verify');
-
     await page.fill('#wallet-input', VACCINATED_WALLET);
     await page.click('button[type="submit"]');
 
@@ -62,15 +67,13 @@ test.describe('Public Verification Flow', () => {
     await expect(badge).toContainText('Verified');
     await expect(badge).toContainText('2');
 
-    // Record details rendered as NFTCards
     await expect(page.getByText('COVID-19 Pfizer')).toBeVisible();
     await expect(page.getByText('MMR')).toBeVisible();
   });
 
-  // AC3: unvaccinated wallet → 'No Records Found' badge
-  test('shows No Records Found badge for unvaccinated wallet', async ({ page }) => {
+  // AC3: unvaccinated wallet → No Records Found badge
+  test('AC3: shows No Records Found badge for unvaccinated wallet', async ({ page }) => {
     await page.goto('/verify');
-
     await page.fill('#wallet-input', UNVACCINATED_WALLET);
     await page.click('button[type="submit"]');
 
@@ -79,32 +82,28 @@ test.describe('Public Verification Flow', () => {
     await expect(badge).toContainText('No Records Found');
   });
 
-  // AC4 & AC5: invalid wallet format → client-side validation error (HTML5 required + pattern)
-  test('shows error message for invalid wallet format', async ({ page }) => {
+  // AC4 + AC5: invalid wallet format → error shown, badge never appears
+  test('AC4: shows error message for invalid wallet format', async ({ page }) => {
     await page.goto('/verify');
-
     await page.fill('#wallet-input', INVALID_WALLET);
     await page.click('button[type="submit"]');
 
-    // The input is `required`; browser or app prevents submission and shows an error.
-    // VerifyPage renders API errors as role="alert". For a short invalid address the
-    // backend would return an error — intercept it to return a 400.
-    // If the form submits, the route below returns a 400 so the alert is shown.
-    await page.route(`**/v1/verify/${INVALID_WALLET}`, (route) =>
-      route.fulfill({
-        status: 400,
-        contentType: 'application/json',
-        body: JSON.stringify({ error: 'Invalid wallet address format' }),
-      })
-    );
+    // Either HTML5 validation blocks submission (badge stays hidden)
+    // or the app renders a role="alert" error from the 400 response.
+    const badge = page.getByTestId('verification-badge');
+    const alert = page.locator('[role="alert"]');
 
-    // Either the browser blocks submission (no alert rendered) or the app shows role="alert"
-    const alertVisible = await page.locator('[role="alert"]').isVisible().catch(() => false);
-    if (alertVisible) {
-      await expect(page.locator('[role="alert"]')).toBeVisible();
+    // Wait briefly for either outcome to settle
+    await page.waitForTimeout(500);
+
+    const badgeVisible = await badge.isVisible();
+    if (badgeVisible) {
+      // If badge rendered, it must not say Verified — and an alert must be present
+      await expect(badge).not.toContainText('Verified');
+      await expect(alert).toBeVisible();
     } else {
-      // HTML5 validation prevented submission — badge must NOT appear
-      await expect(page.getByTestId('verification-badge')).not.toBeVisible();
+      // HTML5 validation prevented submission — confirm badge is absent
+      await expect(badge).not.toBeVisible();
     }
   });
 });
