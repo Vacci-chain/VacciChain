@@ -208,13 +208,83 @@ jobs:
           name: python-audit-report
           path: python-service/audit-report.txt
 
+  verify-perf:
+    name: k6 performance test — verify endpoint
+    runs-on: ubuntu-latest
+    needs: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Start backend
+        working-directory: backend
+        run: node src/app.js &
+        env:
+          NODE_ENV: test
+          PORT: 4000
+          # Minimal env so config validation passes
+          STELLAR_NETWORK: testnet
+          HORIZON_URL: https://horizon-testnet.stellar.org
+          SOROBAN_RPC_URL: https://soroban-testnet.stellar.org
+          STELLAR_NETWORK_PASSPHRASE: Test SDF Network ; September 2015
+          VACCINATIONS_CONTRACT_ID: CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM
+          ADMIN_SECRET_KEY: SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          ADMIN_PUBLIC_KEY: GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF
+          SEP10_SERVER_KEY: SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB
+          ISSUER_SECRET_KEY: SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC
+          JWT_SECRET: ci-test-secret
+
+      - name: Wait for backend
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:4000/health && exit 0
+            sleep 2
+          done
+          echo "Backend did not start" && exit 1
+
+      - name: Install k6
+        run: |
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
+            | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update -qq && sudo apt-get install -y k6
+
+      - name: Run k6 load test
+        working-directory: backend
+        run: |
+          k6 run \
+            -e BASE_URL=http://localhost:4000 \
+            --out json=load-test-results.json \
+            load-test.js
+
+      - name: Upload load test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-perf-results-${{ github.run_id }}
+          path: |
+            backend/load-test-results.json
+            backend/load-test-summary.json
+          retention-days: 90
+
   # Gate job: all test jobs must pass before a PR can be merged.
   # Configure this job name ("All tests passed") as a required status check
   # in Settings → Branches → Branch protection rules for `main`.
   all-tests:
     name: All tests passed
     runs-on: ubuntu-latest
-    needs: [contract, backend, frontend, python]
+    needs: [contract, backend, frontend, python, verify-perf]
     if: always()
     steps:
       - name: Check all test jobs succeeded
@@ -222,7 +292,8 @@ jobs:
           if [[ "${{ needs.contract.result }}" != "success" || \
                 "${{ needs.backend.result }}"  != "success" || \
                 "${{ needs.frontend.result }}"  != "success" || \
-                "${{ needs.python.result }}"    != "success" ]]; then
+                "${{ needs.python.result }}"    != "success" || \
+                "${{ needs.verify-perf.result }}" != "success" ]]; then
             echo "One or more test jobs failed."
             exit 1
           fi
