@@ -12,6 +12,7 @@ import FreighterBanner from './components/FreighterBanner';
 import DemoBanner from './components/DemoBanner';
 import NavBar from './components/NavBar';
 import SkipToContent from './components/SkipToContent';
+import RequireAuth from './components/RequireAuth';
 
 export default function App() {
   const [dark, setDark] = useDarkMode();
@@ -21,14 +22,12 @@ export default function App() {
       <DemoBanner />
       <NavBar dark={dark} onToggleDark={() => setDark((d) => !d)} />
       <SkipToContent />
-      <DemoBanner/>
-      <NavBar dark={dark} onToggleDark={() => setDark(d => !d)} />
       <FreighterBanner />
       <main id="main-content" tabIndex={-1} style={{ outline: 'none' }}>
         <Routes>
           <Route path="/" element={<Landing />} />
-          <Route path="/patient" element={<PatientDashboard />} />
-          <Route path="/issuer" element={<IssuerDashboard />} />
+          <Route path="/patient" element={<RequireAuth><PatientDashboard /></RequireAuth>} />
+          <Route path="/issuer" element={<RequireAuth requiredRole="issuer"><IssuerDashboard /></RequireAuth>} />
           <Route path="/verify" element={<VerifyPage />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/apply" element={<IssuerOnboarding />} />
