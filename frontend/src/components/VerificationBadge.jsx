@@ -62,11 +62,12 @@ export default function VerificationBadge({ status, vaccinated, recordCount = 0 
       role="status"
       aria-label={label}
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+        display: 'flex', alignItems: 'center', gap: '0.5rem',
         padding: '0.375rem 0.875rem', minHeight: '2rem', borderRadius: '12px',
         backgroundColor: bg, color: '#ffffff',
         fontSize: '0.875rem', fontWeight: '600',
         transition: 'background-color 0.2s ease', cursor: 'default',
+        boxSizing: 'border-box', width: '100%',
       }}
     >
       <span style={{ display: 'flex', alignItems: 'center' }}>{ICONS[key]}</span>
