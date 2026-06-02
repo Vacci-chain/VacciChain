@@ -25,6 +25,7 @@ export function AuthProvider({ children }) {
   const [role, setRole] = useState(null);
   const [loading, setLoading] = useState(false);
   const [connectionStep, setConnectionStep] = useState(CONNECTION_STEPS.IDLE);
+  const [hydrating, setHydrating] = useState(() => !!localStorage.getItem(STORAGE_KEY));
   const [error, setError] = useState(null);
   const [freighterInstalled, setFreighterInstalled] = useState(() => typeof window !== 'undefined' && !!window.freighter);
   // Token lives only in memory — never written to localStorage
@@ -100,12 +101,13 @@ export function AuthProvider({ children }) {
       if (!connected) {
         setFreighterInstalled(false);
         localStorage.removeItem(STORAGE_KEY);
-        return;
+      } else {
+        // Restore identity so UI shows as connected; token will be fetched on first apiFetch call
+        setPublicKey(savedKey);
+        setRole(savedRole);
       }
-      // Restore identity so UI shows as connected; token will be fetched on first apiFetch call
-      setPublicKey(savedKey);
-      setRole(savedRole);
-    }).catch(() => localStorage.removeItem(STORAGE_KEY));
+    }).catch(() => localStorage.removeItem(STORAGE_KEY))
+      .finally(() => setHydrating(false));
   }, []);
 
   const apiFetch = useCallback(async (url, options = {}) => {
@@ -148,6 +150,7 @@ export function AuthProvider({ children }) {
       isConnected: isConnectedState,
       loading,
       connectionStep,
+      hydrating,
       error,
     }}>
       {children}
