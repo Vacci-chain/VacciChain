@@ -268,8 +268,9 @@ docker compose up --build
 git clone https://github.com/your-org/vacci-chain.git
 cd vacci-chain
 cp .env.example .env
-# Fill in your Stellar keys and contract IDs
 ```
+
+Open `.env` in your editor and fill in the required values. Every variable in [`.env.example`](.env.example) includes an inline comment explaining its purpose, expected format, and default value. Variables marked `[REQUIRED]` must be set before the backend will start.
 
 ### 2. Setup secret scanning protection
 
