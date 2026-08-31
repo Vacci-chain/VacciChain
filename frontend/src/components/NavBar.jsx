@@ -5,6 +5,7 @@ import Tooltip from './Tooltip';
 import WalletConnectionProgress from './WalletConnectionProgress';
 import { useAuth } from '../hooks/useFreighter';
 import FeedbackButton from './FeedbackButton';
+import NetworkBadge from './NetworkBadge';
 
 const NAV_LINKS = [
   { to: '/', label: 'Home' },
@@ -194,7 +195,10 @@ export default function NavBar({ dark, onToggleDark }) {
 
   return (
     <nav aria-label="Main navigation" style={{ padding: '1rem 2rem', background: 'var(--nav-bg)', display: 'flex', flexWrap: 'wrap', gap: '1.5rem', alignItems: 'center', position: 'relative' }}>
-      <strong style={{ color: 'var(--accent)', fontSize: '1.2rem', flex: 1 }}>💉 VacciChain</strong>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flex: 1 }}>
+        <strong style={{ color: 'var(--accent)', fontSize: '1.2rem' }}>VacciChain</strong>
+        <NetworkBadge />
+      </div>
 
       {/* Hamburger button — visible only below 640px */}
       <button
