@@ -40,7 +40,10 @@ services:
     restart: unless-stopped
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_STELLAR_NETWORK: ${STELLAR_NETWORK:-testnet}
     # No ports exposed — nginx serves static assets from ./frontend/dist volume
     depends_on:
       backend:

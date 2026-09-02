@@ -7,6 +7,10 @@ RUN npm install
 
 COPY . .
 
+# Accept network at build time so Vite bakes it into the static bundle
+ARG VITE_STELLAR_NETWORK=testnet
+ENV VITE_STELLAR_NETWORK=$VITE_STELLAR_NETWORK
+
 RUN npm run build
 
 
