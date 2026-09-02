@@ -5,6 +5,7 @@ import {
   signTransaction,
 } from '@stellar/freighter-api';
 import { useToast } from './useToast';
+import { freighterNetwork } from '../config/network';
 
 const AuthContext = createContext(null);
 // Only persist publicKey and role — token is kept in memory only
@@ -40,7 +41,7 @@ export function AuthProvider({ children }) {
     });
     const { transaction, nonce } = await challengeRes.json();
     onStep?.(CONNECTION_STEPS.SIGNING);
-    const signedXDR = await signTransaction(transaction, { network: 'TESTNET' });
+    const signedXDR = await signTransaction(transaction, { network: freighterNetwork });
     onStep?.(CONNECTION_STEPS.VERIFYING);
     const verifyRes = await fetch('/v1/auth/verify', {
       method: 'POST',
